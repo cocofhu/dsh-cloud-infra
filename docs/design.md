@@ -49,7 +49,8 @@ DeepSeek Harness（DSH）插件：让 Agent 在对话中调用云厂商的 OpenA
                          ▼
 ┌──────────────────────────── Client（浏览器，React）─────────────────────────────┐
 │ tool.call.toolview["cloud_call"]       请求摘要 + JSON 结果                       │
-│ tool.call.toolview["cloud_visualize"]  ViewRenderer                              │
+│ tool.call.toolview["cloud_visualize"]  一行调用记录（视图已在对话中展示）        │
+│ conversation.chat.node["cloud-infra-view"]  回合级 Cloud View 卡片                 │
 │ plugins.bundle.config[包名]            插件页里的账号管理卡片                     │
 │ ViewRenderer 注册表：kind → 组件（table / kv / stats / chart / tabs …）           │
 │ client.echarts.js                      ECharts 懒加载 chunk                       │
@@ -459,7 +460,8 @@ const registry = new Map<string, ViewComponent<any>>()
 - 已验证：外部构建的懒加载 chunk（`client.echarts.js`）能被 DSH web 正常加载。
 - 已验证：审批详情插槽被 DSH 占用，结论见 §7.2。
 - 已验证：索引体积为目录 0.9MB 加产品文件 12MB，保留全部版本。
-- DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，可视化结果因此在回合结束后需要展开才能看到。这是 DSH 的展示策略，插件不覆盖。用户可以在设置里切换到 verbose 视图，或把折叠时机改为“下次输入时”。
-- 该分组内容默认最高 400px 并自行滚动，再加上表格、JSON 的内部滚动，会出现多层滚动条。现在的处理：组件不做纵向滚动（表格分页、长文本折叠），并用 `[data-step-process-body]:has(.ci-view)` 取消包含 Cloud View 的分组的高度限制，对话只保留一条滚动条。这依赖 DSH 的 `data-step-process-body` 属性；DSH 改名后只会退回到原来的 400px 滚动，不影响功能。
+- DSH 0.2 会把工具调用放进「Called tools」分组，回合结束后再整体折叠进「Completed in Ns」。可视化结果不应藏在里面，所以客户端通过 `uiConversation.events.register` 注册了一个会话节点定义 `cloud-infra-view`：它匹配 `meta.kind === 'cloud-view'` 的 `tool/result` 事件，生成 `groupTree: 'turn'` 的聊天节点（与回合错误、回合尾部同级），由 `conversation.chat.node["cloud-infra-view"]` 渲染。这样卡片位于工具分组和回合折叠之外，始终可见，并按结果事件的顺序插在对话里。工具分组里的 `cloud_visualize` 行只保留一行调用记录。
+- 这个子插件依赖 `uiConversation` 服务，单独用 `ctx.plugin` 加载；服务不存在时（旧版 DSH）不会加载，`cloud_visualize` 行会退回到直接渲染视图。
+- 退回模式下，该分组内容默认最高 400px 并自行滚动，再加上表格、JSON 的内部滚动，会出现多层滚动条。现在的处理：组件不做纵向滚动（表格分页、长文本折叠），并用 `[data-step-process-body]:has(.ci-view)` 取消包含 Cloud View 的分组的高度限制，对话只保留一条滚动条。这依赖 DSH 的 `data-step-process-body` 属性；DSH 改名后只会退回到原来的 400px 滚动，不影响功能。
 - 可能的后续方案：注册 `conversation.chat.markdown.fence` 的 `cloud-view` 语言层，让模型在最终回复里用代码块引用某次可视化，把视图渲染在不会折叠的回复正文中。这需要从聊天快照里按 callId 找到对应工具结果，会依赖 DSH 的内部数据结构，暂不实现。
 - ECharts 体积较大，必须保持懒加载，主入口不能引入它。

@@ -43,7 +43,7 @@ Cloud View 组件：`group` `tabs` `card` `table` `kv` `stats` `chart`（line、
 
 ## 在 DSH 中的展示
 
-`cloud_call` 和 `cloud_visualize` 的结果渲染在工具调用行里。DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，点开后可以看到。如果希望可视化结果始终展开，可以在 DSH 设置里把对话详情切换到 verbose，或把折叠时机改为「下次输入时」。
+`cloud_call` 的结果渲染在工具调用行里，会随 DSH 的「Called tools」分组一起折叠。`cloud_visualize` 生成的视图则作为独立卡片显示在对话中，位于工具分组和「Completed in」折叠之外，回合结束后仍然可见；工具分组里只保留一行调用记录。
 
 为了让对话只保留一条滚动条，组件本身不做纵向滚动：
 - 表格分页显示，默认每页 10 行；列太宽时只出现横向滚动条。

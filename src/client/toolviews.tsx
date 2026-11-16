@@ -1,6 +1,7 @@
 import * as React from 'react'
 import type { CompiledView } from '../view/spec.js'
 import { Badge, PreBlock, ViewRenderer } from './renderer/index.js'
+import { cardsEnabled } from './chat-card.js'
 import type { ToolResultBlock, ToolViewProps } from './types.js'
 
 const { useState } = React
@@ -114,6 +115,9 @@ export function VisualizeToolView(props: ToolViewProps) {
   const meta = block.meta as { kind?: string; view?: CompiledView } | undefined
   if (block.isError || meta?.kind !== 'cloud-view' || !meta.view) {
     return <ErrorView title={`可视化${title ? ` · ${title}` : ''}`} text={block.error?.reason || resultText(block)} />
+  }
+  if (cardsEnabled()) {
+    return <Shell title={`可视化${meta.view.title ? ` · ${meta.view.title}` : ''}`} sub="已在对话中展示" open={false} toggle={() => undefined} badges={<Badge tone="success">完成</Badge>} />
   }
   return <div className="ci-root" style={{ margin: '4px 0 10px' }}><ViewRenderer view={meta.view} /></div>
 }

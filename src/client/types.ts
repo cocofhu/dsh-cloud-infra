@@ -36,6 +36,8 @@ export interface SlotsService {
 export interface ClientContext {
   get: (name: string) => unknown
   effect: (factory: () => () => void, label?: string) => void
+  /** Sub-plugins load only once their own services exist. */
+  plugin?: (plugin: { name?: string; inject: string[]; apply: (ctx: ClientContext) => void }) => void
 }
 
 /** Injected by DSH's module loader: the package-local async chunk loader. */

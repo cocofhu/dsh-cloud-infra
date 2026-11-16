@@ -2,6 +2,7 @@ import * as React from 'react'
 import { CSS, STYLE_ID } from './styles.js'
 import { SettingsCard } from './settings.js'
 import { CallToolView, VisualizeToolView } from './toolviews.js'
+import { cardPlugin } from './chat-card.js'
 import type { ClientContext, SlotsService } from './types.js'
 
 export { registerViewComponent, ViewRenderer } from './renderer/index.js'
@@ -26,6 +27,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(ensureCss, STYLE_ID)
   slots.inject('tool.call.toolview', () => slots.register({ name: 'tool.call.toolview', key: 'cloud_call' }, CallToolView))
   slots.inject('tool.call.toolview', () => slots.register({ name: 'tool.call.toolview', key: 'cloud_visualize' }, VisualizeToolView))
+  ctx.plugin?.(cardPlugin)
   slots.inject('plugins.bundle.config', () => slots.register({ name: 'plugins.bundle.config', id: 'cloud-infra-accounts', key: PACKAGE_NAME }, BundleConfig))
 }
 

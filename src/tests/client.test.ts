@@ -15,6 +15,8 @@ interface ClientUnderTest {
   CallToolView: (props: Record<string, unknown>) => React.ReactNode
   VisualizeToolView: (props: Record<string, unknown>) => React.ReactNode
   apply: (ctx: object) => void
+  cardDefinition: { match: Record<string, (e: object) => unknown>; start: (c: object, m: object) => unknown; buildViewNode: (c: object) => Record<string, unknown> | null }
+  CloudViewCard: (props: Record<string, unknown>) => React.ReactNode
   inject: string[]
 }
 
@@ -140,4 +142,38 @@ test('tool views render call and view results; apply registers slots', () => {
   assert.deepEqual(registered.map((r) => `${String(r.name)}:${String(r.key)}`), [
     'tool.call.toolview:cloud_call', 'tool.call.toolview:cloud_visualize', 'plugins.bundle.config:@cocofhu/dsh-cloud-infra',
   ])
+})
+
+test('visualization results become Turn-level chat cards outside the tool group', () => {
+  const v = view({ kind: 'markdown', text: 'card body' })
+  const event = (meta: unknown, extra: object = {}) => ({ type: 'tool/result', seq: 42, surfaceOp: 'append', data: { message: { source: { callId: 'call-9' } }, meta, ...extra } })
+  const match = client.cardDefinition.match['tool/result']
+  assert.deepEqual(match(event({ kind: 'cloud-view', view: v })), { id: 'call-9', role: 'start' })
+  assert.equal(match(event({ kind: 'cloud-call' })), null)
+  assert.equal(match(event({ kind: 'cloud-view', view: v }, { isError: true })), null)
+  assert.equal(match({ ...event({ kind: 'cloud-view', view: v }), surfaceOp: 'replace' }), null)
+
+  const location = { kind: 'step' }
+  const m = { event: event({ kind: 'cloud-view', view: v }), location, role: 'start' }
+  const state = client.cardDefinition.start({}, m)
+  const node = client.cardDefinition.buildViewNode({ key: 'k', id: 'call-9', start: m, matches: [m], state, current: new Map() })
+  assert.equal(node?.groupTree, 'turn')
+  assert.equal(node?.kind, 'cloud-infra-view')
+  assert.equal(node?.anchorSeq, 42)
+  assert.equal(node?.location, location)
+  assert.match(html(React.createElement(client.CloudViewCard, { node })), /card body/)
+
+  const plugins: { inject: string[]; apply: (ctx: object) => void }[] = []
+  const registered: string[] = []
+  const definitions: unknown[] = []
+  const slots = { inject: (_n: string, f: () => unknown) => { f() }, register: (o: Record<string, unknown>) => { registered.push(`${String(o.name)}:${String(o.key)}`); return () => undefined } }
+  client.apply({ get: () => slots, effect: () => undefined, plugin: (p: { inject: string[]; apply: (ctx: object) => void }) => plugins.push(p) })
+  assert.deepEqual(plugins[0]?.inject, ['slots', 'uiConversation'])
+  const services: Record<string, unknown> = { slots, uiConversation: { events: { register: (d: unknown) => { definitions.push(d); return () => undefined } } } }
+  plugins[0]?.apply({ get: (n: string) => services[n], effect: (f: () => () => void) => { f() } })
+  assert.equal(definitions[0], client.cardDefinition)
+  assert.ok(registered.includes('conversation.chat.node:cloud-infra-view'))
+  const row = html(React.createElement(client.VisualizeToolView, { phase: 'result', toolName: 'cloud_visualize', callId: 'c', block: { kind: 'tool-result', callId: 'c', name: 'cloud_visualize', call: null, content: [], isError: false, meta: { kind: 'cloud-view', view: v } } }))
+  assert.match(row, /已在对话中展示/)
+  assert.doesNotMatch(row, /card body/)
 })
