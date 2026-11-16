@@ -1,4 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
+import { IndexedCatalog, type ApiCatalog } from '../../core/catalog.js'
 import { CloudError, CloudErrorCode } from '../../core/errors.js'
 import type { CloudProvider, TestResult } from '../../core/provider.js'
 import { classify } from '../../core/risk.js'
@@ -12,24 +14,27 @@ const SERVICE_PATTERN = /^[a-z][a-z0-9]*$/
 const VERSION_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const READ_RETRY_DELAYS_MS = [500, 1500]
 
+export const TENCENT_INDEX_DIR = fileURLToPath(new URL('../../api-index/tencent/', import.meta.url))
+
 export interface TencentProviderOptions {
   credentials: TencentCredentials
   rules: () => readonly RiskRule[]
   timeoutMs: () => number
   /** Per-service endpoint overrides, e.g. `{ cvm: 'cvm.ap-shanghai.tencentcloudapi.com' }`. */
   endpoints?: () => Readonly<Record<string, string>>
-  /** Latest API version of a service; the API index provides this. */
-  resolveVersion?: (service: string) => string | undefined
+  catalog?: ApiCatalog
   transport?: TencentTransport
 }
 
 export class TencentProvider implements CloudProvider {
   readonly id = 'tencent'
   readonly displayName = '腾讯云'
+  readonly catalog: ApiCatalog
   private readonly transport: TencentTransport
 
   constructor(private readonly options: TencentProviderOptions) {
     this.transport = options.transport ?? sdkTransport
+    this.catalog = options.catalog ?? new IndexedCatalog(TENCENT_INDEX_DIR)
   }
 
   classify(req: CloudRequest): RiskLevel {
@@ -54,9 +59,9 @@ export class TencentProvider implements CloudProvider {
     if (!SERVICE_PATTERN.test(req.service)) {
       throw new CloudError(CloudErrorCode.INVALID_PARAMETER, `invalid service "${req.service}"; use the lowercase product id such as "cvm"`)
     }
-    const version = req.version || this.options.resolveVersion?.(req.service)
+    const version = this.resolveVersion(req)
     if (!version || !VERSION_PATTERN.test(version)) {
-      throw new CloudError(CloudErrorCode.INVALID_PARAMETER, `missing or invalid version for "${req.service}"; pass the API version such as "2017-03-12" (cloud_api_search lists it)`)
+      throw new CloudError(CloudErrorCode.INVALID_PARAMETER, `missing or invalid version for "${req.service}"; "${req.service}" is not in the API index, so pass the API version such as "2017-03-12" or find the product with cloud_api_search`)
     }
     const region = req.region || account.defaultRegion
       || (account.source === 'tccli' ? await this.options.credentials.tccliRegion(account.tccliProfile || 'default') : undefined)
@@ -80,6 +85,16 @@ export class TencentProvider implements CloudProvider {
         if (!retryable || delay === undefined || !isThrottle(mapped)) throw mapped
         await sleep(delay, undefined, { signal })
       }
+    }
+  }
+
+  /** Explicit version first, then the newest one in the API index. */
+  resolveVersion(req: Pick<CloudRequest, 'service' | 'version' | 'action'>): string | undefined {
+    if (req.version) return req.version
+    try {
+      return this.catalog.latestVersion(req.service, req.action)
+    } catch {
+      return undefined
     }
   }
 

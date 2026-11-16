@@ -50,7 +50,7 @@ DeepSeek Harness（DSH）插件：让 Agent 在对话中调用云厂商的 OpenA
 ┌──────────────────────────── Client（浏览器，React）─────────────────────────────┐
 │ tool.call.toolview["cloud_call"]       请求摘要 + JSON 结果                       │
 │ tool.call.toolview["cloud_visualize"]  ViewRenderer                              │
-│ settings.plugin.item                   账号管理卡片                               │
+│ plugins.bundle.config[包名]            插件页里的账号管理卡片                     │
 │ ViewRenderer 注册表：kind → 组件（table / kv / stats / chart / tabs …）           │
 │ client.echarts.js                      ECharts 懒加载 chunk                       │
 └──────────────────────────────────────────────────────────────────────────────────┘
@@ -77,6 +77,8 @@ dsh-cloud-infra/
     core/
       types.ts            CloudRequest / CloudResponse / RiskLevel / AccountInfo
       provider.ts         CloudProvider 接口 + ProviderRegistry
+      catalog.ts          ApiCatalog：读取 API 索引、搜索、参数树展开
+      coerce.ts           按索引类型纠正参数
       accounts.ts         AccountRegistry：合并各来源账号
       risk.ts             风险分级规则引擎
       result-store.ts     会话内结果缓存
@@ -89,9 +91,11 @@ dsh-cloud-infra/
       credentials.ts      DSH credentials 与 ~/.tccli 两个来源
       risk.ts             腾讯云 Action 命名规则
       errors.ts           腾讯云错误码 → CloudError
-      catalog.ts          读取 API 索引
+    runtime.ts            resolveCall：账号、版本、参数纠正、风险、地域（审批钩子与工具共用）
     tools/
-      accounts.ts  api-search.ts  api-describe.ts  call.ts  result.ts  visualize.ts
+      accounts.ts  api.ts（search + describe）  call.ts  result.ts  visualize.ts
+    web/
+      api.ts              /cloud-infra/api 账号管理接口
     policy/
       approval.ts         tools/pre-execute 钩子
     view/
@@ -103,7 +107,9 @@ dsh-cloud-infra/
       index.tsx           apply：注册 slots
       renderer/           ViewRenderer + 各 kind 组件
       echarts/            懒加载 chunk 入口 + 主题
-      settings/           账号管理卡片
+      toolviews.tsx       cloud_call / cloud_visualize 卡片
+      settings.tsx        账号管理卡片
+      testing.ts          测试用入口（打包成 lib/tests/client-under-test.cjs）
   lib/                    构建产物（发布内容）
     api-index/            catalog.json + <service>.json
 ```
@@ -168,7 +174,7 @@ interface CloudProvider {
 
 ### 5.3 `cloud_visualize`
 
-参数：`title?`、`view`（Cloud View Spec，见 §8）。View 中的数据既可以内联，也可以通过 `{ ref, path }` 绑定 ResultStore 中的结果。返回给模型的只是一句渲染摘要（例如"已渲染表格，共 42 行"），不回传数据。
+参数：`view`（Cloud View Spec `{ title?, body }`，见 §8）。View 中的数据既可以内联，也可以通过 `{ ref, path }` 绑定 ResultStore 中的结果。返回给模型的只是一句渲染摘要（例如"已渲染表格，共 42 行"），不回传数据。
 
 ### 5.4 ResultStore
 
@@ -183,7 +189,10 @@ interface CloudProvider {
 - 云资源操作只用 `cloud_*` 工具，不要在 bash 里执行 `tccli` 或厂商 CLI（那样会绕过审批）。
 - 参数不确定时先 `cloud_api_search` / `cloud_api_describe`。
 - 写操作会触发用户审批；被拒绝后不要换个方式重试同一操作。
-- 数据适合表格、图表或汇总时，可以调用 `cloud_visualize`；简单问答直接用文字回答。
+- 数据适合表格、图表或汇总时，调用 `cloud_visualize` 并按 `ref` 绑定原始结果，由组件自己分组、计数、求和；不要把云数据复制到 bash 或文件里统计。简单问答直接用文字回答。
+- 同一个只读 Action 要查多个地域时用 `regions`。
+
+真实运行中观察到，模型最初会用 bash 统计数据、把 `kind` 写成 `type`，也会为每个地域单独调用 `cloud_result`。针对这些情况补充了上面的提示和工具描述中的完整示例，并在实现上支持了 `type` 别名和“对象的对象”展开成行（§8.1）。
 
 ## 6. 凭据与账号
 
@@ -256,7 +265,8 @@ riskRules:
 - 插件监听 `tools/pre-execute`：`cloud_call` 为 `read` 时调用 `next()`，否则返回 `{ kind: 'ask', reason, displayReason }`。工具流水线会把 `ask` 交给 `user-approval`，用户选择的权限预设、会话策略（`ask` / `never`）、审计日志全部沿用。
 - `reason` 与 `displayReason` 包含账号、地域、`service.Action`、风险等级和关键参数摘要。参数里名称匹配 `Password|Secret|Token|PrivateKey` 的字段会脱敏。
 - 只读账号用 `ctx.tools.guard()` 做单调拒绝，任何审批都无法放行。
-- 审批卡片的 `conversation.approval.detail` 插槽是 `single` 类型、按 `callId` 关联。如果占用它会与其他插件冲突，就退回只用 `displayReason` 文本（M5 验证）。
+- 审批卡片的 `conversation.approval.detail` 插槽是 `single` 类型，已经被 DSH 自带的审批组件占用，插件占用它会覆盖所有工具的审批界面。因此不使用该插槽，审批卡片中的详情只来自 `displayReason` 文本。
+- 已在真实 DSH 中验证：`--approval-policy never` 时写操作被拒绝，模型收到 `the user rejected tool "cloud_call"` 后不再重试。
 
 ### 7.3 其他约束
 
@@ -281,8 +291,8 @@ type ViewNode =
   // 数据
   | { kind: 'table'; data: DataSource; columns?: Column[]; rowKey?: string; pageSize?: number }
   | { kind: 'kv'; data: DataSource; items?: { label: string; path: string; format?: Format }[] }
-  | { kind: 'stats'; items: { label: string; value: number | string | Binding; unit?: string; tone?: Tone; hint?: string }[] }
-  | { kind: 'chart'; chart: 'line' | 'area' | 'bar' | 'pie' | 'scatter' | 'heatmap' | 'gauge'; data: DataSource; x?: string; y: string | string[]; series?: string; stack?: boolean; unit?: string }
+  | { kind: 'stats'; items: { label: string; value: number | string | (Binding & { agg?: Aggregate }); unit?: string; format?: Format; tone?: Tone; hint?: string }[] }
+  | { kind: 'chart'; chart: 'line' | 'area' | 'bar' | 'hbar' | 'pie' | 'donut' | 'scatter' | 'heatmap' | 'gauge'; data: DataSource; x?: string; y?: string | string[]; series?: string; value?: string; agg?: Aggregate; stack?: boolean; unit?: string; format?: Format; xFormat?: Format; max?: number }
   | { kind: 'echarts'; option: JsonObject; data?: Record<string, DataSource> }   // 高级出口，见 8.3
   | { kind: 'timeline'; data: DataSource; time: string; title: string; description?: string; tone?: string }
   | { kind: 'tree'; data: DataSource; label: string; children: string }
@@ -296,10 +306,18 @@ type Binding = { ref: string; path?: string }                // 指向 ResultSto
 type Column = { key: string; title?: string; format?: Format; width?: number }
 type Format = 'text' | 'number' | 'percent' | 'bytes' | 'currency' | 'datetime' | 'duration' | 'status' | 'tag' | 'code' | 'link'
 type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+type Aggregate = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'first'
 ```
 
 - 路径语法（`key`、`path`、`x`、`y` 共用）：`a.b`、`a[0]`、`a[*].b`。`table` 未给 `columns` 时，从前 50 行推断标量列。
-- `status` 格式按值的常见词（`RUNNING`、`STOPPED`、`FAILED`、`Normal` 等）上色。这是通用词表，不按产品区分。
+- `status` 格式按值的常见词（`RUNNING`、`STOPPED`、`FAILED`、`Normal` 等）上色。这是通用词表，不按产品区分。`percent` 表示数值已经是 0–100 的百分数（与云监控指标一致）。
+- `table` 推断列时跳过所有样本行都为空（`null`、空字符串、空数组）的字段。
+- `chart` 的数据形态：
+  - 行模式：每行一个对象，按 `x` 分组；省略 `y` 时计数，`series` 把行拆成多条序列。
+  - 行内序列：每行自带 x、y 数组，例如云监控 `DataPoints` 的 `Timestamps` / `Values`，每行一条序列。
+  - 列模式：数据是一个包含平行数组的对象，`x`、`y` 指向其中的数组。
+- 需要行的地方如果拿到“对象的对象”，例如多地域结果 `{ "<region>": data }`，就展开成每个条目一行 `{ key, ...value }`。这样一次调用就能按地域对比。
+- 模型常把 `kind` 写成 `type`。`cloud_visualize` 只在视图节点（`body`、`children`、`tabs`）上接受这个别名，数据和 ECharts option 内的 `type` 保持不变。
 
 ### 8.2 编译（Host）
 
@@ -307,12 +325,12 @@ type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 
 1. 校验 Spec：未知 `kind`、缺字段、超深嵌套（> 6 层）返回 `ToolArgsError`，错误信息直接告诉模型哪里不对。
 2. 解析每个 `Binding`，从 ResultStore 取值并物化。
-3. 施加上限：单个数据源 2000 行，整个 View 序列化后 1MB。超出时截断，并在 View 中附带 `truncated` 标记。
-4. 把编译后的自包含 View 放入 `presentationMeta`。
+3. 施加上限：单个数据源 2000 行，整个 View 序列化后 1MB。超过 1MB 时把行上限减半重新编译，最低 10 行，并在 View 中附带 `truncated` 标记。
+4. 编译结果放在工具的 `value` 中，再由 `presentationMeta` 投影出 `{ kind: 'cloud-view', view }`。`value` 不写入会话日志，`presentationMeta` 会写入，所以回放会话时不需要结果缓存。返回给模型的只是一份简短的摘要，例如每个表格的行数和列名、每个图表的序列数。
 
 ### 8.3 ECharts
 
-- 用 `echarts/core` 按需注册 line、bar、pie、scatter、heatmap、gauge、graph、tree、sankey、radar 和常用组件，打成单独的懒加载 chunk `client.echarts.js`。只有页面上出现图表时，才通过 `require.async('./client.echarts.js')` 加载。
+- 用 `echarts/core` 按需注册 line、bar、pie、scatter、heatmap、gauge、graph、tree、treemap、sankey、radar、funnel、boxplot、candlestick 和常用组件，打成单独的懒加载 chunk `client.echarts.js`（约 870KB）。只有页面上出现图表时，才通过 `require.async('./client.echarts.js')` 加载。构建脚本会检查主入口不含 ECharts。
 - `chart` 是简化形式，覆盖大多数场景；`echarts` 直接透传 option，`data` 中的绑定会作为 `dataset.source` 注入。透传的 option 会先经过 §7.3 的清洗。
 - 主题根据 DSH 的 `--dsw-*` CSS token 在运行时生成，切换深浅色时重建。
 
@@ -324,8 +342,8 @@ const registry = new Map<string, ViewComponent<any>>()
 ```
 
 - 未注册的 `kind` 或渲染异常会退回 `json` 视图，不会让整张卡片失败。
-- 尽量复用 DSH 共享模块表中的 `@deepseek-ai/dsh-client-ui-primitives`（Button、JSON 和 Markdown 渲染器等），样式只使用 `--dsw-*` token。
-- 表格使用共享模块表里的 `@tanstack/react-virtual` 做虚拟滚动。
+- 组件自带实现，只依赖共享模块表里的 `react`，样式统一使用 `ci-` 前缀和 DSH 的 `--dsw-*` token。这样就不依赖 DSH 内部组件的 API 稳定性。
+- 表格支持筛选、排序和分页，每页行数由 `pageSize` 指定。Markdown 只支持安全子集，链接只允许 http(s)。
 
 ### 8.5 扩展方式
 
@@ -339,19 +357,37 @@ const registry = new Map<string, ViewComponent<any>>()
 
 1. 读取全量 SDK `tencentcloud-sdk-nodejs`（devDependency，不打包）下的 `tencentcloud/services/<svc>/<ver>/<svc>_client.d.ts` 和 `<svc>_models.d.ts`。
 2. 用 TypeScript compiler API 解析：client 类方法得到 Action 和 JSDoc 说明；`<Action>Request` 接口得到入参树（展开到结构体，最多 4 层，递归类型截断）、可选性和字段注释。
-3. 清洗注释：去 HTML 标签、压缩空白、保留链接文本，单字段说明截断到 300 字。
+3. 清洗注释：去 HTML 标签、压缩空白、保留链接文本，单字段说明截断到 1200 字。过滤器字段会在说明里列出全部可用的 Name，所以需要较长的上限。
 4. 输出：
-   - `lib/api-index/tencent/catalog.json`：所有产品的 `service/version/action/一行摘要`，供搜索使用，启动时加载。
-   - `lib/api-index/tencent/<service>.json`：该产品各版本的完整入参结构，`cloud_api_describe` 首次用到时懒加载。
-5. 同一产品有多个版本时，默认使用最新版本，`version` 参数可指定旧版本。
+   - `lib/api-index/tencent/catalog.json`：每个 Action 一行 `[service, action, 摘要, 版本?]`，约 0.9MB，首次搜索时加载。版本列只在该 Action 不在产品最新版本里时出现。
+   - `lib/api-index/tencent/<service>.json`：该产品各版本的完整入参结构，共约 12MB，首次用到时懒加载，进程内保留最近 16 个产品。
+5. 版本选择：`version` 省略时，取包含该 Action 的最新版本。例如 monitor 的最新版本 2023-06-16 只有 42 个 Action，`GetMonitorData` 会自动落到 2018-07-24。
+6. SDK 4.1.344 的实测规模：263 个产品、16,037 个 Action，构建约 3 秒。
 
-搜索：对 Action 名做驼峰分词，加上中文摘要的二元组，按产品名、Action 名、摘要的加权分数排序，返回前 20 条。
+搜索：
+- 每个英文单词和每段中文各算一个查询词组，按覆盖的词组比例加权，避免中文二元组的噪声压低排名。
+- 中文先按内置词表切分，剩下的部分才切二元组。词表包括产品名（云服务器→cvm、负载均衡→clb 等）、资源名词（实例→instance、安全组→security 等）、动词（查询→describe、删除→delete 等）和泛化词（列表、信息等，只用于排序）。
+- 同分时优先较短、较通用的 Action，例如 `DescribeInstances` 排在 `DescribeResourcePoolPackInstances` 前面。
+
+参数纠正：`cloud_call` 按索引里的字段类型纠正标量参数，规则如下：
+- 数字或布尔写进字符串字段时转成字符串，例如 VPC 的 `Limit` 要求字符串。
+- 数字字符串写进数字字段时转成数字。
+- `"true"`、`"false"` 转成布尔。
+- 单个值写进列表字段时包成单元素列表。
+- 嵌套结构体递归处理。未知字段和无法转换的值原样交给 API 报错。
 
 ## 10. 设置卡片与 Host 接口
 
-- 注册到 `settings.plugin.item`：账号列表（来源、默认地域、只读开关、凭据状态的脱敏预览），新增和编辑账号、导入 tccli profile，以及"测试连接"按钮（腾讯云调用 `sts:GetCallerIdentity`）。
-- Host 路由 `POST /cloud-infra/api`，`method` 取值：`accounts.list`、`accounts.save`、`accounts.remove`、`accounts.test`、`tccli.profiles`。
-- SecretKey 只能写入、不能读回。界面上只显示 `describe` 返回的脱敏值。
+- 卡片注册到 `plugins.bundle.config`，key 为包名，显示在「插件 → @cocofhu/dsh-cloud-infra」页面里。`plugins.item` 是官方设置页专用的插槽，第三方插件不应占用。卡片提供：
+  - 账号列表：来源、默认地域、只读标记、凭据的脱敏预览。
+  - 新增、编辑、删除账号，以及导入 tccli profile。
+  - “测试连接”按钮，腾讯云调用 `sts:GetCallerIdentity`。
+- Host 路由 `POST /cloud-infra/api`（需要 DSH 登录，只接受 JSON，校验同源，请求体最大 64KB）。浏览器端用相对文档的路径 `cloud-infra/api`，部署在代理前缀下也能访问。`method` 取值：`state`、`accounts.save`、`accounts.remove`、`accounts.test`。
+- 持久化：DSH 0.2.2 没有 `settings.register`，改为把 `accounts`、`riskRules`、`timeoutMs`、`maxOutputChars` 声明为 `.volatile()` 配置。具体做法：
+  - 写入用 `settings.update(entryId, patch)`，结果落在 profile 的 `cordis.patch.yml`。
+  - Host 监听 `loader/volatile-update` 重新读取配置，不需要重启。
+  - `settings.configure({ auto: false })` 关闭 DSH 为这些字段自动生成的表单。
+- SecretKey 只写入 DSH 凭据存储，不进入配置文件，也不能读回。已在真实 DSH 中核对：密钥只出现在 `~/.dsh/.credentials.yaml`，profile 配置里只有账号元数据，删除账号时会一并删除密钥。
 
 ## 11. 错误处理
 
@@ -377,32 +413,48 @@ const registry = new Map<string, ViewComponent<any>>()
 - Host：`tsc` 输出到 `lib/`。
 - Client：`scripts/build-client.ts` 用 esbuild 打包两个入口：`lib/client.js`（主入口）和 `lib/client.echarts.js`（懒加载 chunk）。两者都包成 `window.__ModuleLoader__.load({ id, factory: (require) => … })` 的形式；`react`、`react/jsx-runtime`、`@deepseek-ai/dsh-client-ui-*` 等共享模块保持 external，由注入的 `require` 解析。
 - 索引：`scripts/build-api-index.ts` 输出到 `lib/api-index/`。
-- `package.json` 声明 `dsh.bundle.patch`、`dsh.client`（`platform: 'web'`、`inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-slots']`），以及 `exports["./client"]`。
+- `package.json` 声明 `dsh.bundle.patch`、`dsh.client`（`platform: 'web'`、`inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-slots', '@deepseek-ai/dsh-client-ui-plugin-manager']`），以及 `exports["./client"]`。
+- 产物大小：`client.js` 约 39KB，`client.echarts.js` 约 870KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
 - 安装：`dsh plugin --profile web add @cocofhu/dsh-cloud-infra`。
 
 ## 13. 测试策略
 
-- 单元测试（`node --test`）：风险分级、路径取值、结果裁剪、tccli 文件解析、错误码映射、View 校验与编译、索引解析。
-- Provider 测试：注入假的 `CommonClient`，覆盖超时、取消、节流重试、多地域并发。
-- 组装测试：在 DSH 测试运行时中加载插件，验证工具注册、`pre-execute` 对读和写返回的决策、只读账号的 guard。
-- 可选在线测试：设置 `TENCENTCLOUD_SECRET_ID/KEY` 时，对 `sts:GetCallerIdentity`、`cvm:DescribeRegions` 做冒烟测试。
-- Client：对各 `kind` 组件做渲染快照，验证未知 `kind` 退回 `json`。
+`pnpm test` 共 51 个用例，分为以下几组：
+- 核心：风险分级、路径取值、结果裁剪、tccli 文件解析、错误码映射、节流重试、取消。
+- 索引（基于真实生成的索引）：中英文搜索排序、按 Action 选版本、参数树展开、参数类型纠正。
+- 工具流水线：在真实的 DSH 工具运行时里挂载 6 个工具，注入假 transport。覆盖以下流程：
+  - search → describe → call → visualize 全流程。
+  - 多地域部分失败。
+  - 写操作与 `regions` 不能同时使用。
+  - `cloud_result` 分页。
+  - `type` 别名。
+- 组装：加载整个插件，验证工具注册、审批钩子、只读 guard。
+- Cloud View：校验错误的定位、各图表形态、对象展开成行、尺寸收缩、ECharts option 清洗。
+- Web 接口：`dispatch` 的增删改测、`parseAccount` 校验，以及真实 HTTP 下的方法、内容类型、同源和请求体大小限制。
+- Client：用 `react-dom/server` 渲染所有组件、9 种图表的 option、toolview 和 slot 注册，验证未知 `kind` 退回 JSON。
+
+在线验证（密钥只通过环境变量传入，不写入仓库）：
+- 腾讯云直连：`sts.GetCallerIdentity`、`cvm.DescribeRegions`、30 个地域并发 `DescribeInstances`、`vpc.DescribeVpcs`、`monitor.GetMonitorData`（自动选到 2018-07-24）。
+- DSH headless + DeepSeek 模型：按状态和机型统计实例并可视化；45 个地域分布加 CPU 趋势图；审批拒绝；只读账号拒绝写入。
+- DSH web：在浏览器里核对 toolview、ECharts 渲染、设置卡片的增删改测和凭据落盘位置。
 
 ## 14. 里程碑
 
-| 阶段 | 内容 |
-|---|---|
-| M1 | 骨架；账号（store + tccli）；TencentProvider；风险分级 + 审批钩子 + 只读 guard；`cloud_accounts`、`cloud_call`、`cloud_result`；单元测试 |
-| M2 | API 索引生成；`cloud_api_search`、`cloud_api_describe` |
-| M3 | Cloud View Spec、校验与编译；`cloud_visualize`；Client 渲染器（非图表组件）；`cloud_call` 卡片 |
-| M4 | ECharts 懒加载 chunk、`chart` / `echarts` 组件、主题适配 |
-| M5 | 设置卡片与 Host 接口；审批详情插槽；多地域并发 |
-| M6 | 第二个厂商（阿里云），检验抽象是否成立 |
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| M1 | 骨架；账号（store + tccli）；TencentProvider；风险分级 + 审批钩子 + 只读 guard；`cloud_accounts`、`cloud_call`、`cloud_result`；单元测试 | 完成 |
+| M2 | API 索引生成；`cloud_api_search`、`cloud_api_describe` | 完成 |
+| M3 | Cloud View Spec、校验与编译；`cloud_visualize`；Client 渲染器（非图表组件）；`cloud_call` 卡片 | 完成 |
+| M4 | ECharts 懒加载 chunk、`chart` / `echarts` 组件、主题适配 | 完成 |
+| M5 | 设置卡片与 Host 接口；多地域并发（审批详情插槽不采用，见 §7.2） | 完成 |
+| M6 | 第二个厂商（阿里云），检验抽象是否成立 | 未开始，需要阿里云账号 |
 
 ## 15. 风险与待验证
 
 - DSH 处于 developer preview，插件 API 可能有破坏性变更。用 `engines.dsh` 锁定兼容范围，并在 dsh-testsuite 中做回归。
-- 外部构建的 Client chunk 格式（`client.<name>.js`）需要在 M4 用真实 DSH 验证加载路径。
-- `conversation.approval.detail` 是 single 插槽，能否由插件占用需要在 M5 验证（备选方案见 §7.2）。
-- 全量 SDK 的索引体积预计在数 MB 级别，需要在 M2 实测；必要时只保留各产品的最新版本。
+- 已验证：外部构建的懒加载 chunk（`client.echarts.js`）能被 DSH web 正常加载。
+- 已验证：审批详情插槽被 DSH 占用，结论见 §7.2。
+- 已验证：索引体积为目录 0.9MB 加产品文件 12MB，保留全部版本。
+- DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，分组内容最高 400px。可视化结果因此在回合结束后需要展开才能看到。这是 DSH 的展示策略，插件不覆盖。用户可以在设置里切换到 verbose 视图，或把折叠时机改为“下次输入时”。
+- 可能的后续方案：注册 `conversation.chat.markdown.fence` 的 `cloud-view` 语言层，让模型在最终回复里用代码块引用某次可视化，把视图渲染在不会折叠的回复正文中。这需要从聊天快照里按 callId 找到对应工具结果，会依赖 DSH 的内部数据结构，暂不实现。
 - ECharts 体积较大，必须保持懒加载，主入口不能引入它。

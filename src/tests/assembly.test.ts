@@ -48,7 +48,9 @@ test('plugin registers its tools in a real tool runtime', async () => {
   const ctx = await setup()
   try {
     const names = (ctx as unknown as { tools: { schemas: () => { name: string }[] } }).tools.schemas().map((s) => s.name)
-    for (const name of ['cloud_accounts', 'cloud_call', 'cloud_result']) assert.ok(names.includes(name), name)
+    for (const name of ['cloud_accounts', 'cloud_api_search', 'cloud_api_describe', 'cloud_call', 'cloud_result', 'cloud_visualize']) assert.ok(names.includes(name), name)
+    const prompt = await (ctx as unknown as { systemPrompt: { render?: () => Promise<string> | string } }).systemPrompt.render?.()
+    if (typeof prompt === 'string') assert.match(prompt, /cloud_visualize/)
     const accounts = await run(ctx, 'cloud_accounts', {})
     assert.equal(accounts.isError, false)
     assert.match(text(accounts), /prod: tencent · read-only/)

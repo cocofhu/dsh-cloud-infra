@@ -1,3 +1,4 @@
+import type { ApiCatalog } from './catalog.js'
 import { CloudError, CloudErrorCode } from './errors.js'
 import type { AccountConfig, AccountInfo, CloudRequest, CloudResponse, RiskLevel } from './types.js'
 
@@ -10,6 +11,7 @@ export interface TestResult {
 export interface CloudProvider {
   readonly id: string
   readonly displayName: string
+  readonly catalog: ApiCatalog
   /** Describe configured accounts of this provider without secret material. */
   describeAccount(account: AccountConfig): Promise<AccountInfo>
   /** Pure and synchronous: runs inside the pre-execute policy. */

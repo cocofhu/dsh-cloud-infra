@@ -1,4 +1,7 @@
+import { ToolArgsError } from '@deepseek-ai/dsh-tools'
 import type { Config } from './config.js'
+import type { ApiCatalog } from './core/catalog.js'
+import { coerceParams } from './core/coerce.js'
 import { AccountRegistry } from './core/accounts.js'
 import { ProviderRegistry } from './core/provider.js'
 import type { ResultStore } from './core/result-store.js'
@@ -20,6 +23,7 @@ export interface CallArgs {
   version?: string
   action: string
   region?: string
+  regions?: string[]
   params?: JsonObject
 }
 
@@ -27,23 +31,55 @@ export interface ResolvedCall {
   request: CloudRequest
   account: AccountConfig
   risk: RiskLevel
+  /** Fan-out regions for a read action; absent for single-region calls. */
+  regions?: string[]
 }
+
+export const MAX_REGIONS = 30
 
 /** Shared by the pre-execute policy and the tool body so both see the same decision. */
 export function resolveCall(rt: Runtime, args: CallArgs): ResolvedCall {
   const providerId = args.provider || DEFAULT_PROVIDER
   const provider = rt.providers.get(providerId)
   const account = rt.accounts.resolve(providerId, args.account)
+  const service = String(args.service).trim().toLowerCase()
+  let version = args.version?.trim() || undefined
+  if (!version) {
+    try {
+      version = provider.catalog.latestVersion(service, String(args.action).trim())
+    } catch {
+      version = undefined
+    }
+  }
+  const action = String(args.action).trim()
   const request: CloudRequest = {
     provider: providerId,
     account: account.id,
-    service: String(args.service).trim().toLowerCase(),
-    version: args.version?.trim() || undefined,
-    action: String(args.action).trim(),
+    service,
+    version,
+    action,
     region: args.region?.trim() || undefined,
-    params: args.params ?? {},
+    params: typedParams(provider.catalog, service, action, version, args.params ?? {}),
   }
-  return { request, account, risk: provider.classify(request) }
+  const risk = provider.classify(request)
+  const regions = [...new Set((args.regions ?? []).map((r) => String(r).trim()).filter(Boolean))]
+  if (!regions.length) return { request, account, risk }
+  if (risk !== 'read') {
+    throw new ToolArgsError([`"regions" only works with read actions; ${service}.${request.action} is a ${risk} action, call it once per region with "region"`])
+  }
+  if (request.region) throw new ToolArgsError(['pass either "region" or "regions", not both'])
+  if (regions.length > MAX_REGIONS) throw new ToolArgsError([`at most ${MAX_REGIONS} regions per call`])
+  return { request, account, risk, regions }
+}
+
+function typedParams(catalog: ApiCatalog, service: string, action: string, version: string | undefined, params: JsonObject): JsonObject {
+  let nodes
+  try {
+    nodes = catalog.describe(service, action, version).params
+  } catch {
+    return params
+  }
+  return coerceParams(params, nodes).params
 }
 
 const SENSITIVE_KEY = /password|passwd|secret|token|privatekey|credential/i

@@ -1,0 +1,358 @@
+import * as React from 'react'
+import type { CompiledChart, CompiledNode, CompiledView, Format, JsonValue, Tone, TreeNode } from '../../view/spec.js'
+import { statusTone } from '../../view/spec.js'
+import { formatValue } from '../format.js'
+import type { EchartsChunk, ModuleRequire } from '../types.js'
+import { chartHeight, chartOption } from './chart-option.js'
+import { Markdown } from './markdown.js'
+
+const { useEffect, useMemo, useRef, useState } = React
+
+declare const __dshRequire: ModuleRequire | undefined
+
+export type Render = (node: CompiledNode, key?: React.Key) => React.ReactNode
+export type ViewComponent<K extends CompiledNode['kind']> = (props: { node: Extract<CompiledNode, { kind: K }>; render: Render }) => React.ReactNode
+
+const registry = new Map<string, ViewComponent<never>>()
+
+/** Extension point: register or replace the renderer of one node kind. */
+export function registerViewComponent<K extends CompiledNode['kind']>(kind: K, component: ViewComponent<K>): () => void {
+  const previous = registry.get(kind)
+  registry.set(kind, component as unknown as ViewComponent<never>)
+  return () => {
+    if (previous) registry.set(kind, previous)
+    else registry.delete(kind)
+  }
+}
+
+class Boundary extends React.Component<{ node: CompiledNode; children: React.ReactNode }, { error?: Error }> {
+  override state: { error?: Error } = {}
+  static getDerivedStateFromError(error: Error) { return { error } }
+  override render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div>
+        <div className="ci-err">渲染 {this.props.node.kind} 失败：{this.state.error.message}</div>
+        <JsonBlock value={this.props.node as unknown as JsonValue} />
+      </div>
+    )
+  }
+}
+
+const render: Render = (node, key) => {
+  const Component = registry.get(node?.kind) as unknown as React.ComponentType<{ node: CompiledNode; render: Render }> | undefined
+  if (!Component) return <JsonBlock key={key} value={node as unknown as JsonValue} />
+  return <Boundary key={key} node={node}><Component node={node} render={render} /></Boundary>
+}
+
+export function ViewRenderer({ view }: { view: CompiledView }) {
+  if (!view || view.v !== 1 || !view.body) return <JsonBlock value={view as unknown as JsonValue} />
+  return (
+    <div className="ci-view">
+      {view.title ? <div className="ci-view-title">{view.title}</div> : null}
+      {render(view.body)}
+      {view.truncated ? <div className="ci-note">部分数据超过展示上限，已截断。</div> : null}
+    </div>
+  )
+}
+
+export function JsonBlock({ value }: { value: JsonValue }) {
+  const text = useMemo(() => {
+    const s = JSON.stringify(value, null, 2) ?? 'null'
+    return s.length > 200_000 ? `${s.slice(0, 200_000)}\n…` : s
+  }, [value])
+  return <pre className="ci-pre">{text}</pre>
+}
+
+function SectionTitle({ title }: { title?: string }) {
+  return title ? <div className="ci-sec-t">{title}</div> : null
+}
+
+export function Badge({ tone, children, dot }: { tone: Tone; children: React.ReactNode; dot?: boolean }) {
+  return <span className={`ci-badge ${tone}`}>{dot ? <span className="ci-dot" /> : null}{children}</span>
+}
+
+export function Value({ value, format }: { value: JsonValue | undefined; format?: Format }) {
+  if (value === null || value === undefined || value === '') return <span style={{ color: 'var(--dsw-alias-label-tertiary)' }}>—</span>
+  switch (format) {
+    case 'status':
+      return <Badge tone={statusTone(value)} dot>{String(value)}</Badge>
+    case 'tag':
+      return <>{(Array.isArray(value) ? value : [value]).map((v, i) => <Badge key={i} tone="neutral">{formatValue(v)}</Badge>)}</>
+    case 'code':
+      return <code>{formatValue(value)}</code>
+    case 'link': {
+      const href = String(value)
+      return /^https?:\/\//.test(href) ? <a href={href} target="_blank" rel="noreferrer noopener">{href}</a> : <>{href}</>
+    }
+    default:
+      if (typeof value === 'boolean') return <Badge tone={value ? 'success' : 'neutral'}>{String(value)}</Badge>
+      return <>{formatValue(value, format)}</>
+  }
+}
+
+// ---- layout ----
+
+registerViewComponent('group', ({ node, render: r }) => {
+  if (node.columns && node.columns > 1) {
+    return <div className="ci-grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${Math.floor(720 / node.columns)}px), 1fr))` }}>{node.children.map((c, i) => r(c, i))}</div>
+  }
+  return <div className={node.direction === 'row' ? 'ci-row' : 'ci-col'}>{node.children.map((c, i) => r(c, i))}</div>
+})
+
+registerViewComponent('tabs', ({ node, render: r }) => {
+  const [active, setActive] = useState(0)
+  const current = node.tabs[Math.min(active, node.tabs.length - 1)]
+  return (
+    <div>
+      <div className="ci-tabs" role="tablist">
+        {node.tabs.map((t, i) => (
+          <button key={i} type="button" role="tab" aria-selected={i === active} className={`ci-tab${i === active ? ' on' : ''}`} onClick={() => setActive(i)}>{t.label}</button>
+        ))}
+      </div>
+      {current ? r(current.body) : null}
+    </div>
+  )
+})
+
+registerViewComponent('card', ({ node, render: r }) => (
+  <div className="ci-card">
+    {node.title || node.subtitle ? (
+      <div className="ci-card-h">
+        {node.title ? <div className="ci-card-t">{node.title}</div> : null}
+        {node.subtitle ? <div className="ci-card-s">{node.subtitle}</div> : null}
+      </div>
+    ) : null}
+    {r(node.body)}
+  </div>
+))
+
+// ---- data ----
+
+function compare(a: JsonValue, b: JsonValue): number {
+  if (a === b) return 0
+  if (a === null || a === undefined) return 1
+  if (b === null || b === undefined) return -1
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return String(a).localeCompare(String(b), undefined, { numeric: true })
+}
+
+registerViewComponent('table', ({ node }) => {
+  const [page, setPage] = useState(0)
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null)
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let out = q ? node.rows.filter((r) => r.some((c) => c !== null && String(typeof c === 'object' ? JSON.stringify(c) : c).toLowerCase().includes(q))) : node.rows
+    if (sort) out = [...out].sort((a, b) => compare(a[sort.col] ?? null, b[sort.col] ?? null) * sort.dir)
+    return out
+  }, [node.rows, query, sort])
+  const pageSize = node.pageSize || 20
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const current = Math.min(page, pages - 1)
+  const visible = rows.slice(current * pageSize, current * pageSize + pageSize)
+  const toggleSort = (col: number) => setSort((s) => (s?.col === col ? (s.dir === 1 ? { col, dir: -1 } : null) : { col, dir: 1 }))
+  return (
+    <div>
+      <SectionTitle title={node.title} />
+      {node.rows.length > pageSize ? (
+        <div className="ci-tbar">
+          <input placeholder="筛选…" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} aria-label="筛选表格" />
+          <span className="ci-grow" />
+          <span>{rows.length === node.total ? `${node.total} 行` : `${rows.length} / ${node.total} 行`}</span>
+        </div>
+      ) : null}
+      <div className="ci-table-wrap">
+        <table className="ci-table">
+          <thead>
+            <tr>
+              {node.columns.map((c, i) => (
+                <th key={i} style={c.width ? { width: c.width } : undefined} onClick={() => toggleSort(i)} aria-sort={sort?.col === i ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
+                  {c.title}{sort?.col === i ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length ? visible.map((r, ri) => (
+              <tr key={ri}>
+                {node.columns.map((c, ci) => {
+                  const v = r[ci]
+                  const title = v !== null && v !== undefined && typeof v !== 'object' ? String(v) : undefined
+                  return <td key={ci} title={title}><Value value={v} format={c.format} /></td>
+                })}
+              </tr>
+            )) : (
+              <tr><td colSpan={node.columns.length} style={{ textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)' }}>无数据</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {pages > 1 ? (
+        <div className="ci-pager">
+          <button type="button" className="ci-btn" disabled={current === 0} onClick={() => setPage(current - 1)}>上一页</button>
+          <span>{current + 1} / {pages}</span>
+          <button type="button" className="ci-btn" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>下一页</button>
+        </div>
+      ) : null}
+      {node.total > node.rows.length ? <div className="ci-note">共 {node.total} 行，展示前 {node.rows.length} 行。</div> : null}
+    </div>
+  )
+})
+
+registerViewComponent('kv', ({ node }) => (
+  <div>
+    <SectionTitle title={node.title} />
+    <div className="ci-kv" style={{ gridTemplateColumns: `repeat(${node.columns ?? 2}, minmax(0, 1fr))` }}>
+      {node.items.map((it, i) => (
+        <div key={i} className="ci-kv-i">
+          <span className="ci-kv-l">{it.label}</span>
+          <span className="ci-kv-v"><Value value={it.value} format={it.format} /></span>
+        </div>
+      ))}
+    </div>
+  </div>
+))
+
+registerViewComponent('stats', ({ node }) => (
+  <div className="ci-stats">
+    {node.items.map((it, i) => (
+      <div key={i} className={`ci-stat ${it.tone ?? ''}`}>
+        <div className="ci-stat-l">{it.label}</div>
+        <div className="ci-stat-v">{formatValue(it.value, it.format)}{it.unit ? <small>{it.unit}</small> : null}</div>
+        {it.hint ? <div className="ci-stat-h">{it.hint}</div> : null}
+      </div>
+    ))}
+  </div>
+))
+
+// ---- charts ----
+
+let chunk: Promise<EchartsChunk> | undefined
+
+export function loadEcharts(): Promise<EchartsChunk> {
+  if (!chunk) {
+    const req = typeof __dshRequire !== 'undefined' ? __dshRequire : undefined
+    chunk = req?.async ? (req.async('./client.echarts.js') as Promise<EchartsChunk>) : Promise.reject(new Error('chart runtime unavailable'))
+    chunk.catch(() => { chunk = undefined })
+  }
+  return chunk
+}
+
+function useDarkTheme(): boolean {
+  const read = () => typeof document !== 'undefined' && document.body?.hasAttribute('data-ds-dark-theme')
+  const [dark, setDark] = useState(read)
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined' || !document.body) return
+    const observer = new MutationObserver(() => setDark(read()))
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
+    return () => observer.disconnect()
+  }, [])
+  return dark
+}
+
+export function EChart({ option, height, title }: { option: Record<string, unknown>; height: number; title?: string }) {
+  const el = useRef<HTMLDivElement>(null)
+  const instance = useRef<ReturnType<EchartsChunk['mount']> | null>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [error, setError] = useState('')
+  const dark = useDarkTheme()
+  useEffect(() => {
+    let live = true
+    loadEcharts().then((ec) => {
+      if (!live || !el.current) return
+      if (instance.current) instance.current.update(option, dark)
+      else instance.current = ec.mount(el.current, option, dark)
+      setState('ready')
+    }, (e: Error) => { if (live) { setState('error'); setError(e.message) } })
+    return () => { live = false }
+  }, [option, dark])
+  useEffect(() => () => { instance.current?.dispose(); instance.current = null }, [])
+  return (
+    <div>
+      <SectionTitle title={title} />
+      <div className="ci-chart" style={{ height }}>
+        <div ref={el} style={{ width: '100%', height: '100%' }} />
+        {state !== 'ready' ? (
+          <div className="ci-chart-ph">{state === 'loading' ? <><span className="ci-spin" />加载图表…</> : <span className="ci-err">图表加载失败：{error}</span>}</div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+registerViewComponent('chart', ({ node }) => {
+  const option = useMemo(() => chartOption(node as CompiledChart), [node])
+  return (
+    <div>
+      <EChart option={option} height={chartHeight(node as CompiledChart)} title={node.title} />
+      {node.truncated ? <div className="ci-note">数据点过多，只展示最近的部分。</div> : null}
+    </div>
+  )
+})
+
+registerViewComponent('echarts', ({ node }) => <EChart option={node.option as Record<string, unknown>} height={node.height ?? 320} title={node.title} />)
+
+// ---- other ----
+
+registerViewComponent('timeline', ({ node }) => (
+  <div>
+    <SectionTitle title={node.title} />
+    <ul className="ci-tl">
+      {node.items.map((it, i) => (
+        <li key={i} className={it.tone ? statusTone(it.tone) : ''}>
+          <div className="ci-tl-t">{formatValue(it.time, 'datetime')}</div>
+          <div>{it.label}</div>
+          {it.description ? <div className="ci-tl-d">{it.description}</div> : null}
+        </li>
+      ))}
+    </ul>
+    {node.total > node.items.length ? <div className="ci-note">共 {node.total} 条，展示前 {node.items.length} 条。</div> : null}
+  </div>
+))
+
+function TreeItems({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
+  return (
+    <ul className={`ci-tree${depth === 0 ? ' root' : ''}`}>
+      {nodes.map((n, i) => <TreeItem key={i} node={n} depth={depth} />)}
+    </ul>
+  )
+}
+
+function TreeItem({ node, depth }: { node: TreeNode; depth: number }) {
+  const [open, setOpen] = useState(depth < 2)
+  const hasKids = !!node.children?.length
+  return (
+    <li>
+      <div className="ci-tree-n">
+        {hasKids ? <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? '▾' : '▸'}</button> : <span style={{ width: 16 }} />}
+        <span>{node.label}</span>
+        {node.value ? <span className="ci-tree-v">{node.value}</span> : null}
+      </div>
+      {hasKids && open ? <TreeItems nodes={node.children!} depth={depth + 1} /> : null}
+    </li>
+  )
+}
+
+registerViewComponent('tree', ({ node }) => (
+  <div>
+    <SectionTitle title={node.title} />
+    <TreeItems nodes={node.nodes} depth={0} />
+  </div>
+))
+
+registerViewComponent('markdown', ({ node }) => <Markdown text={node.text} />)
+
+registerViewComponent('alert', ({ node }) => (
+  <div className={`ci-alert ${node.tone}`} role={node.tone === 'danger' || node.tone === 'warning' ? 'alert' : undefined}>
+    {node.title ? <div className="ci-alert-t">{node.title}</div> : null}
+    <Markdown text={node.text} />
+  </div>
+))
+
+registerViewComponent('json', ({ node }) => (
+  <div>
+    <SectionTitle title={node.title} />
+    <JsonBlock value={node.data} />
+  </div>
+))

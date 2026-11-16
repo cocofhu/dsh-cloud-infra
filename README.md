@@ -1,6 +1,6 @@
 # dsh-cloud-infra
 
-DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI。先支持腾讯云，写操作走 DSH 自带的审批。
+DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI。目前支持腾讯云全部产品（263 个产品、16,037 个 Action），写操作走 DSH 自带的审批，查询结果可以用内置的 Cloud View 组件（表格、图表、统计卡片等）展示。
 
 设计见 [docs/design.md](docs/design.md)。
 
@@ -9,10 +9,17 @@ DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI。先支持腾讯�
 | 工具 | 作用 |
 |---|---|
 | `cloud_accounts` | 列出已配置的账号（不含密钥） |
-| `cloud_call` | 调用任意 Action；只读操作直接执行，其余需要用户审批 |
-| `cloud_result` | 分页读取已缓存的调用结果 |
+| `cloud_api_search` | 按关键词（中英文均可）搜索产品与 Action |
+| `cloud_api_describe` | 查看某个 Action 的参数结构和返回字段 |
+| `cloud_call` | 调用任意 Action；只读操作直接执行，其余需要用户审批。`version` 省略时取包含该 Action 的最新版本；`regions` 可对只读操作并发查询多个地域；参数会按 API 索引中的类型自动纠正（如 VPC 的 `Limit` 需要字符串） |
+| `cloud_result` | 分页、按字段读取已缓存的调用结果 |
+| `cloud_visualize` | 把缓存结果绑定到 Cloud View 组件展示给用户 |
+
+Cloud View 组件：`group` `tabs` `card` `table` `kv` `stats` `chart`（line、area、bar、hbar、pie、donut、scatter、heatmap、gauge）`echarts` `timeline` `tree` `markdown` `alert` `json`。图表和统计卡片会自己做分组、计数和求和，模型只需按 `ref` 绑定原始结果。
 
 ## 配置
+
+账号可以在 DSH Web 的「插件 → @cocofhu/dsh-cloud-infra」页面里管理（新增、编辑、删除、测试连接、导入 tccli profile），也可以直接写在 profile 里：
 
 ```yaml
 - id: cloud-infra
@@ -23,17 +30,34 @@ DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI。先支持腾讯�
         provider: tencent
         source: store          # 密钥存在 DSH 凭据存储
         defaultRegion: ap-guangzhou
-        readonly: true
+        readonly: true         # 拒绝一切写操作，不弹审批
       - id: dev
         provider: tencent
         source: tccli          # 读取 ~/.tccli/<profile>.credential
         tccliProfile: default
+    tencent:
+      tccliDir: ~/.tccli       # 可选
 ```
+
+`dsh headless` 没有凭据存储，只能使用 `source: tccli` 的账号。
+
+## 在 DSH 中的展示
+
+`cloud_call` 和 `cloud_visualize` 的结果渲染在工具调用行里。DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，分组内容最高 400px、超出部分滚动显示。如果希望可视化结果始终展开，可以在 DSH 设置里把对话详情切换到 verbose，或把折叠时机改为「下次输入时」。
 
 ## 开发
 
 ```sh
 pnpm install
-pnpm test
-dsh plugin --profile web add ./
+pnpm build        # tsc + API 索引 + 浏览器端 bundle
+pnpm test         # 构建并运行全部测试
+pnpm typecheck    # Host 与 Client 两套 tsconfig
+dsh plugin --profile web add link:$PWD
 ```
+
+构建产物：
+
+- `lib/host.js`：Host 插件。
+- `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录和 12MB 的按产品分文件。
+- `lib/client.js`：Client 插件，约 39KB。
+- `lib/client.echarts.js`：ECharts chunk，约 870KB，出现图表时才加载。

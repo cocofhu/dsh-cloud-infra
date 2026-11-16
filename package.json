@@ -1,7 +1,7 @@
 {
   "name": "@cocofhu/dsh-cloud-infra",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI（先支持腾讯云），写操作复用 DSH 审批",
+  "description": "DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI（先支持腾讯云），写操作复用 DSH 审批，内置 Cloud View 可视化组件",
   "homepage": "https://github.com/cocofhu/dsh-cloud-infra#readme",
   "bugs": {
     "url": "https://github.com/cocofhu/dsh-cloud-infra/issues"
@@ -14,6 +14,7 @@
   "main": "lib/host.js",
   "exports": {
     ".": "./lib/host.js",
+    "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -40,13 +41,25 @@
     "dsh": ">=0.2.2-rc.1 <0.3.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test 'lib/tests/**/*.test.js'",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsc -p tsconfig.json && node scripts/build-api-index.ts && node scripts/build-client.ts",
+    "build:host": "tsc -p tsconfig.json",
+    "build:index": "node scripts/build-api-index.ts",
+    "build:client": "node scripts/build-client.ts",
+    "prepack": "npm run build",
+    "test": "npm run build && node --test \"lib/tests/**/*.test.js\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "peerDependencies": {
@@ -54,7 +67,8 @@
     "@deepseek-ai/dsh-credentials": "*",
     "@deepseek-ai/dsh-error": "*",
     "@deepseek-ai/dsh-tools": "*",
-    "@deepseek-ai/schemastery": "*"
+    "@deepseek-ai/schemastery": "*",
+    "react": "^18.2.0"
   },
   "dependencies": {
     "tencentcloud-sdk-nodejs-common": "^4.1.220"
@@ -69,6 +83,18 @@
     "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
     "@deepseek-ai/schemastery": "^3.19.0",
     "@types/node": "^24.0.0",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "echarts": "^6.1.0",
+    "esbuild": "^0.28.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tencentcloud-sdk-nodejs": "^4.1.344",
     "typescript": "^5.9.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

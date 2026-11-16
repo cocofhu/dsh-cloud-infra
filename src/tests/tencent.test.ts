@@ -87,12 +87,15 @@ test('call strips the envelope and passes region, version and endpoint', async (
   assert.equal(seen?.secret.secretId, 'AKIDx')
 })
 
-test('call requires a version until the API index provides one', async () => {
+test('version defaults to the newest in the API index; unknown services still need one', async () => {
   const store = memoryStore()
   await new TencentCredentials(() => store).save('prod', { secretId: 'AKIDx', secretKey: 'k' })
-  const p = provider(async () => ({}), store)
+  let seen: TencentInvocation | undefined
+  const p = provider(async (inv) => { seen = inv; return {} }, store)
+  await p.call({ provider: 'tencent', account: 'prod', service: 'cvm', action: 'DescribeInstances', params: {} }, storeAccount, new AbortController().signal)
+  assert.equal(seen?.version, '2017-03-12')
   await assert.rejects(
-    p.call({ provider: 'tencent', account: 'prod', service: 'cvm', action: 'DescribeInstances', params: {} }, storeAccount, new AbortController().signal),
+    p.call({ provider: 'tencent', account: 'prod', service: 'nosuchproduct', action: 'DescribeX', params: {} }, storeAccount, new AbortController().signal),
     (err: unknown) => err instanceof CloudError && err.code === 'CLOUD_INVALID_PARAMETER',
   )
 })

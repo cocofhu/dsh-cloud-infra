@@ -29,11 +29,12 @@ const Rule: Schema<RiskRule> = Schema.object({
   level: Schema.union(['read', 'write', 'danger'] as const).required(),
 }) as unknown as Schema<RiskRule>
 
+/** `accounts`, `riskRules`, `timeoutMs` and `maxOutputChars` are volatile: the settings card edits them live. */
 export const Config: Schema<Config> = Schema.object({
-  accounts: Schema.array(Account).default([]).description('云账号（不含密钥）'),
-  riskRules: Schema.array(Rule).default([]).description('覆盖默认的风险分级规则，按顺序匹配'),
-  timeoutMs: Schema.number().default(30000).description('单次云 API 请求超时（毫秒）'),
-  maxOutputChars: Schema.number().default(16000).description('返回给模型的结果字符上限'),
+  accounts: Schema.array(Account).default([]).description('云账号（不含密钥）').volatile(),
+  riskRules: Schema.array(Rule).default([]).description('覆盖默认的风险分级规则，按顺序匹配').volatile(),
+  timeoutMs: Schema.number().default(30000).description('单次云 API 请求超时（毫秒）').volatile(),
+  maxOutputChars: Schema.number().default(16000).description('返回给模型的结果字符上限').volatile(),
   resultStore: Schema.object({
     maxEntries: Schema.number().default(50),
     maxBytes: Schema.number().default(64 * 1024 * 1024),
@@ -44,10 +45,24 @@ export const Config: Schema<Config> = Schema.object({
   }).default({ endpoints: {} }),
 }) as unknown as Schema<Config>
 
-export function withDefaults(raw: Partial<Config> | undefined): Config {
+/** Read a value that may be a live volatile reference (Loader-mounted) or a plain value (tests, direct mounts). */
+export function live<T>(value: T | { get: () => T } | undefined): T | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) && typeof (value as { get?: unknown }).get === 'function'
+    ? (value as { get: () => T }).get()
+    : (value as T | undefined)
+}
+
+export function withDefaults(input: Partial<Config> | undefined): Config {
+  const raw: Partial<Config> = {
+    ...input,
+    accounts: live(input?.accounts),
+    riskRules: live(input?.riskRules),
+    timeoutMs: live(input?.timeoutMs),
+    maxOutputChars: live(input?.maxOutputChars),
+  }
   return {
-    accounts: Array.isArray(raw?.accounts) ? raw.accounts : [],
-    riskRules: Array.isArray(raw?.riskRules) ? raw.riskRules : [],
+    accounts: Array.isArray(raw.accounts) ? raw.accounts.map((a) => ({ ...a })) : [],
+    riskRules: Array.isArray(raw.riskRules) ? raw.riskRules.map((r) => ({ ...r })) : [],
     timeoutMs: positive(raw?.timeoutMs, 30000),
     maxOutputChars: positive(raw?.maxOutputChars, 16000),
     resultStore: {
