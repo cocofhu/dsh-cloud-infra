@@ -1,0 +1,108 @@
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import { truncateJson } from '../core/truncate.js'
+import type { JsonValue, RiskLevel } from '../core/types.js'
+import { CALL_TOOL, readonlyDenial } from '../policy/approval.js'
+import { resolveCall, type Runtime } from '../runtime.js'
+import { CloudError, CloudErrorCode } from '../core/errors.js'
+
+const PREVIEW_CHARS = 4000
+
+export interface CallValue {
+  ref: string
+  provider: string
+  account: string
+  service: string
+  version?: string
+  action: string
+  region?: string
+  risk: RiskLevel
+  requestId?: string
+  durationMs: number
+  data: JsonValue
+}
+
+export function callTool(rt: Runtime) {
+  return defineTool({
+    name: CALL_TOOL,
+    description:
+      'Call any cloud OpenAPI action (Tencent Cloud first). Read actions (Describe*/List*/Get*/Query*…) run directly; '
+      + 'every other action asks the user for approval. Use the exact product id, API version and PascalCase action, '
+      + 'e.g. service "cvm", version "2017-03-12", action "DescribeInstances". The full result is cached under the returned '
+      + '"ref" for cloud_result and cloud_visualize; the text you see may be truncated.',
+    parameters: {
+      provider: { type: 'string', description: 'Cloud provider id. Default "tencent".' },
+      account: { type: 'string', description: 'Account id from cloud_accounts. Required when more than one account exists.' },
+      service: { type: 'string', required: true, description: 'Lowercase product id, e.g. cvm, vpc, clb, cdb, monitor, billing.' },
+      version: { type: 'string', description: 'API version YYYY-MM-DD, e.g. 2017-03-12.' },
+      action: { type: 'string', required: true, description: 'PascalCase action, e.g. DescribeInstances.' },
+      region: { type: 'string', description: 'Region such as ap-guangzhou. Defaults to the account region; omit for global products.' },
+      params: { type: 'object', additionalProperties: true, description: 'Action parameters exactly as in the API docs (PascalCase keys).' },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: renderCall(value as unknown as CallValue, rt.config().maxOutputChars) }],
+      presentationMeta: (_args, value) => callMeta(value as unknown as CallValue),
+    },
+    presentCall: (args) => ({
+      card: 'generic',
+      title: `云 API · ${String(args.service ?? '')}.${String(args.action ?? '')}`,
+      kind: 'fetch',
+      content: [],
+    }),
+    presentResult: (args, { isError }) => ({
+      card: 'generic',
+      title: `${isError ? '调用失败' : '云 API'} · ${String(args.service ?? '')}.${String(args.action ?? '')}`,
+      content: [],
+    }),
+    async execute(args, exec) {
+      const call = resolveCall(rt, args)
+      const denial = readonlyDenial(call)
+      if (denial) throw new CloudError(CloudErrorCode.READONLY_ACCOUNT, denial)
+      const provider = rt.providers.get(call.request.provider)
+      const res = await provider.call(call.request, call.account, exec.signal)
+      const stored = rt.results.put(exec.agent?.id ?? 'default', call.request, res.data, res.requestId)
+      const value: CallValue = {
+        ref: stored.ref,
+        provider: call.request.provider,
+        account: call.account.id,
+        service: call.request.service,
+        version: call.request.version,
+        action: call.request.action,
+        region: call.request.region ?? call.account.defaultRegion,
+        risk: call.risk,
+        requestId: res.requestId,
+        durationMs: res.durationMs,
+        data: res.data,
+      }
+      return JSON.parse(JSON.stringify(value)) as Record<string, JsonValue>
+    },
+  })
+}
+
+export function renderCall(value: CallValue, maxChars: number): string {
+  const { text, truncated } = truncateJson(value.data, maxChars)
+  const head = `${value.service}.${value.action} ok · ref=${value.ref} · account=${value.account}${value.region ? ` · region=${value.region}` : ''} · RequestId=${value.requestId ?? '-'} · ${value.durationMs}ms`
+  const tail = truncated
+    ? `\n(truncated; page the full result with cloud_result ref="${value.ref}" path=… offset/limit, or render it with cloud_visualize)`
+    : ''
+  return `${head}\n${text}${tail}`
+}
+
+export function callMeta(value: CallValue): JsonValue {
+  const { text, truncated } = truncateJson(value.data, PREVIEW_CHARS)
+  return {
+    kind: 'cloud-call',
+    ref: value.ref,
+    provider: value.provider,
+    account: value.account,
+    service: value.service,
+    version: value.version ?? null,
+    action: value.action,
+    region: value.region ?? null,
+    risk: value.risk,
+    requestId: value.requestId ?? null,
+    durationMs: value.durationMs,
+    preview: text,
+    truncated,
+  }
+}
