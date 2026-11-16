@@ -52,7 +52,7 @@ Cloud View 只有 5 种组件，按 `items` 顺序从上到下排列：`stats`�
 
 ## 组件设计页
 
-组件采用腾讯云控制台（Tea）的视觉规范，跟随 DSH 切换亮色和暗色。为避免许可证问题，没有打包 `tea-component` 本身（它的 npm 许可证是 `UNLICENSED`），样式在 `src/client/styles.ts` 里按 Tea 的取值实现。
+组件直接使用腾讯云控制台组件库 Tea（`tea-component` 2.8.0），跟随 DSH 切换亮色和暗色：表格（排序、筛选、分页）、标签页、指标卡（MetricsBoard）、只读表单、标签、按钮，以及设置页的表单控件都是 Tea 组件；图表仍用 ECharts。`tea-component` 的 npm 许可证是 `UNLICENSED`，本插件已获授权将其打包进 `lib/client.js` 一起发布，Tea 的第三方声明随包附在 `lib/tea-component.Attribution.txt`。
 
 所有 Cloud View 组件的示例集中在一个设计页里，每个示例都用真实的 Spec 经过与 `cloud_visualize` 相同的校验和编译，可以查看对应的 JSON，并切换亮色和暗色主题。
 - 在 DSH 中：「插件 → @cocofhu/dsh-cloud-infra」账号卡片右上角的「组件设计页」，或直接访问 `/cloud-infra/design/`。
@@ -75,6 +75,6 @@ dsh plugin --profile web add link:$PWD
 
 - `lib/host.js`：Host 插件。
 - `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录和 12MB 的按产品分文件。
-- `lib/client.js`：Client 插件，约 39KB。
+- `lib/client.js`：Client 插件，约 630KB，其中 Tea 的 JS 约 310KB，经过作用域处理的 Tea 样式约 300KB。
 - `lib/client.echarts.js`：ECharts chunk（只含折线、柱状、饼图），约 600KB，出现图表时才加载。
 - `lib/design-page/`：组件设计页，自带 React，由插件在 `/cloud-infra/design/` 提供。

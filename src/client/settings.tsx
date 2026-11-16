@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Badge } from './renderer/index.js'
+import { Badge, Spinner } from './renderer/index.js'
+import { Button, Card, Checkbox, Form, Input, Select, Table, Text } from './tea.js'
 
 const { useCallback, useEffect, useState } = React
 
@@ -51,7 +52,6 @@ export async function api<T = Record<string, unknown>>(method: string, payload: 
 }
 
 export function SettingsCard() {
-  const [open, setOpen] = useState(true)
   const [state, setState] = useState<State | null>(null)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -62,7 +62,7 @@ export function SettingsCard() {
     setError('')
     api<State>('state').then(setState, (e: Error) => setError(e.message))
   }, [])
-  useEffect(() => { if (open && !state) load() }, [open, state, load])
+  useEffect(() => { if (!state) load() }, [state, load])
 
   const save = async () => {
     if (!draft) return
@@ -97,95 +97,117 @@ export function SettingsCard() {
 
   const edit = (a: AccountView) => setDraft({ ...EMPTY, originalId: a.id, id: a.id, label: a.label ?? '', source: a.source, defaultRegion: a.defaultRegion ?? '', readonly: a.readonly, tccliProfile: a.tccliProfile ?? 'default' })
   const unusedProfiles = state?.tccliProfiles.filter((p) => !state.accounts.some((a) => a.source === 'tccli' && (a.tccliProfile ?? 'default') === p.name)) ?? []
+  const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d))
+
+  const columns = [
+    {
+      key: 'id', header: '账号',
+      render: (a: AccountView) => <><Text theme="strong">{a.id}</Text>{a.label ? <Text theme="label"> · {a.label}</Text> : null}</>,
+    },
+    {
+      key: 'source', header: '凭据',
+      render: (a: AccountView) => (
+        <>
+          <div>{a.source === 'store' ? 'DSH 凭据' : `tccli:${a.tccliProfile ?? 'default'}`}{a.credential.configured && a.credential.masked ? <Text theme="label"> · {a.credential.masked}</Text> : null}</div>
+          {!a.credential.configured ? <Text theme="danger">{a.credential.detail}</Text> : null}
+        </>
+      ),
+    },
+    { key: 'region', header: '默认地域', render: (a: AccountView) => a.defaultRegion ?? <Text theme="weak">未设置</Text> },
+    { key: 'mode', header: '权限', render: (a: AccountView) => (a.readonly ? <Badge tone="info">只读</Badge> : <Badge tone="warning">可写（需审批）</Badge>) },
+    {
+      key: 'test', header: '连接',
+      render: (a: AccountView) => {
+        const t = tests[a.id]
+        if (t === 'running') return <><Spinner /> 测试中…</>
+        return t ? <Text theme={t.ok ? 'success' : 'danger'}>{t.text}</Text> : <Text theme="weak">未测试</Text>
+      },
+    },
+    {
+      key: 'ops', header: '操作',
+      render: (a: AccountView) => (
+        <>
+          <Button type="link" disabled={tests[a.id] === 'running'} onClick={() => void test(a)}>测试连接</Button>
+          {state?.writable ? <Button type="link" disabled={busy} onClick={() => edit(a)}>编辑</Button> : null}
+          {state?.writable ? <Button type="link" className="ci-danger" disabled={busy} onClick={() => void remove(a)}>删除</Button> : null}
+        </>
+      ),
+    },
+  ]
 
   return (
     <div className="ci-cfg-item ci-root">
-      <details className="ci-cfg" open={open} onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary className="ci-cfg-h">
-          <span style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
-            <span className="ci-cfg-n">Cloud Infra · 云账号</span>
-            <span className="ci-cfg-d">管理 Agent 可调用的云账号。密钥保存在 DSH 凭据存储中，不进入配置文件和模型上下文。</span>
-          </span>
-          <a className="ci-btn" href={DESIGN_ROUTE} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>组件设计页</a>
-        </summary>
-        <div className="ci-cfg-b">
-          {error ? <div className="ci-err">{error}</div> : null}
-          {!state && !error ? <div className="ci-hint"><span className="ci-spin" style={{ display: 'inline-block', marginRight: 6 }} />读取中…</div> : null}
-          {state && !state.writable ? <p className="ci-hint">设置服务不可用：账号只能在 profile 配置里编辑。</p> : null}
-          {state?.accounts.map((a) => {
-            const t = tests[a.id]
-            return (
-              <div className="ci-acct" key={`${a.provider}/${a.id}`}>
-                <div className="ci-acct-main">
-                  <div className="ci-acct-id">{a.id}{a.label ? <span className="ci-acct-sub"> · {a.label}</span> : null}</div>
-                  <div className="ci-acct-sub">
-                    腾讯云 · {a.source === 'store' ? 'DSH 凭据' : `tccli:${a.tccliProfile ?? 'default'}`} · {a.defaultRegion ?? '未设默认地域'}
-                    {a.credential.configured ? ` · ${a.credential.masked ?? ''}` : ''}
-                  </div>
-                  {!a.credential.configured ? <div className="ci-err">{a.credential.detail}</div> : null}
-                  {t && t !== 'running' ? <div className={t.ok ? 'ci-acct-sub' : 'ci-err'}>{t.text}</div> : null}
-                </div>
-                {a.readonly ? <Badge tone="info">只读</Badge> : <Badge tone="warning">可写（需审批）</Badge>}
-                <button type="button" className="ci-btn" disabled={t === 'running'} onClick={() => void test(a)}>{t === 'running' ? '测试中…' : '测试连接'}</button>
-                {state.writable ? <button type="button" className="ci-btn" disabled={busy} onClick={() => edit(a)}>编辑</button> : null}
-                {state.writable ? <button type="button" className="ci-btn danger" disabled={busy} onClick={() => void remove(a)}>删除</button> : null}
+      <Card className="ci-card">
+        <Card.Body
+          title="Cloud Infra · 云账号"
+          subtitle="管理 Agent 可调用的云账号。密钥保存在 DSH 凭据存储中，不进入配置文件和模型上下文。"
+          operation={<Button type="weak" onClick={() => window.open(DESIGN_ROUTE, '_blank', 'noopener')}>组件设计页</Button>}
+        >
+          <div className="ci-col">
+            {error ? <Text theme="danger" parent="div" className="ci-err">{error}</Text> : null}
+            {state && !state.writable ? <Text theme="label" parent="p">设置服务不可用：账号只能在 profile 配置里编辑。</Text> : null}
+            {state || !error ? (
+              <Table
+                columns={columns}
+                records={state?.accounts ?? []}
+                recordKey={(a: AccountView) => `${a.provider}/${a.id}`}
+                topTip={!state ? <div className="ci-empty"><Spinner /> 读取中…</div> : !state.accounts.length ? <div className="ci-empty">还没有账号。添加一个腾讯云账号后，Agent 就能调用云 API。</div> : undefined}
+              />
+            ) : null}
+            {draft ? (
+              <div className="ci-form">
+                <Form>
+                  <Form.Item label="账号 ID" required>
+                    <Input value={draft.id} placeholder="prod" onChange={(v: string) => set({ id: v })} />
+                  </Form.Item>
+                  <Form.Item label="显示名称">
+                    <Input value={draft.label} placeholder="生产环境" onChange={(v: string) => set({ label: v })} />
+                  </Form.Item>
+                  <Form.Item label="默认地域">
+                    <Input value={draft.defaultRegion} placeholder="ap-guangzhou" onChange={(v: string) => set({ defaultRegion: v })} />
+                  </Form.Item>
+                  <Form.Item label="凭据来源">
+                    <Select appearance="button" matchButtonWidth size="l" value={draft.source}
+                      options={[{ value: 'store', text: 'SecretId / SecretKey（DSH 凭据存储）' }, { value: 'tccli', text: 'tccli 配置（~/.tccli）' }]}
+                      onChange={(v: string) => set({ source: v as Draft['source'] })} />
+                  </Form.Item>
+                  {draft.source === 'store' ? (
+                    <>
+                      <Form.Item label="SecretId">
+                        <Input value={draft.secretId} autoComplete="off" placeholder={draft.originalId ? '留空则保持不变' : 'AKID…'} onChange={(v: string) => set({ secretId: v })} />
+                      </Form.Item>
+                      <Form.Item label="SecretKey">
+                        <Input type="password" value={draft.secretKey} autoComplete="new-password" placeholder={draft.originalId ? '留空则保持不变' : ''} onChange={(v: string) => set({ secretKey: v })} />
+                      </Form.Item>
+                    </>
+                  ) : (
+                    <Form.Item label="tccli profile">
+                      <Input value={draft.tccliProfile} list="ci-tccli-profiles" onChange={(v: string) => set({ tccliProfile: v })} />
+                      <datalist id="ci-tccli-profiles">{state?.tccliProfiles.map((p) => <option key={p.name} value={p.name} />)}</datalist>
+                    </Form.Item>
+                  )}
+                  <Form.Item label="权限">
+                    <Checkbox value={draft.readonly} onChange={(v: boolean) => set({ readonly: v })}>只读账号（拒绝一切写操作，不弹审批）</Checkbox>
+                  </Form.Item>
+                </Form>
+                <Form.Action>
+                  <Button type="primary" loading={busy} disabled={!draft.id.trim()} onClick={() => void save()}>保存</Button>
+                  <Button type="weak" disabled={busy} onClick={() => setDraft(null)}>取消</Button>
+                </Form.Action>
               </div>
-            )
-          })}
-          {state && !state.accounts.length ? <p className="ci-hint">还没有账号。添加一个腾讯云账号后，Agent 就能调用云 API。</p> : null}
-          {draft ? (
-            <div className="ci-form">
-              <label className="ci-field">账号 ID
-                <input value={draft.id} placeholder="prod" onChange={(e) => setDraft({ ...draft, id: e.target.value })} />
-              </label>
-              <label className="ci-field">显示名称
-                <input value={draft.label} placeholder="生产环境" onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
-              </label>
-              <label className="ci-field">默认地域
-                <input value={draft.defaultRegion} placeholder="ap-guangzhou" onChange={(e) => setDraft({ ...draft, defaultRegion: e.target.value })} />
-              </label>
-              <label className="ci-field">凭据来源
-                <select value={draft.source} onChange={(e) => setDraft({ ...draft, source: e.target.value as Draft['source'] })}>
-                  <option value="store">SecretId / SecretKey（DSH 凭据存储）</option>
-                  <option value="tccli">tccli 配置（~/.tccli）</option>
-                </select>
-              </label>
-              {draft.source === 'store' ? (
-                <>
-                  <label className="ci-field">SecretId
-                    <input value={draft.secretId} autoComplete="off" placeholder={draft.originalId ? '留空则保持不变' : 'AKID…'} onChange={(e) => setDraft({ ...draft, secretId: e.target.value })} />
-                  </label>
-                  <label className="ci-field">SecretKey
-                    <input type="password" value={draft.secretKey} autoComplete="new-password" placeholder={draft.originalId ? '留空则保持不变' : ''} onChange={(e) => setDraft({ ...draft, secretKey: e.target.value })} />
-                  </label>
-                </>
-              ) : (
-                <label className="ci-field">tccli profile
-                  <input value={draft.tccliProfile} list="ci-tccli-profiles" onChange={(e) => setDraft({ ...draft, tccliProfile: e.target.value })} />
-                  <datalist id="ci-tccli-profiles">{state?.tccliProfiles.map((p) => <option key={p.name} value={p.name} />)}</datalist>
-                </label>
-              )}
-              <label className="ci-field check">
-                <input type="checkbox" checked={draft.readonly} onChange={(e) => setDraft({ ...draft, readonly: e.target.checked })} />
-                只读账号（拒绝一切写操作，不弹审批）
-              </label>
-              <div className="ci-form-ft">
-                <button type="button" className="ci-btn" disabled={busy} onClick={() => setDraft(null)}>取消</button>
-                <button type="button" className="ci-btn primary" disabled={busy || !draft.id.trim()} onClick={() => void save()}>{busy ? '保存中…' : '保存'}</button>
+            ) : state?.writable ? (
+              <div className="ci-btns">
+                <Button type="primary" onClick={() => setDraft({ ...EMPTY })}>添加账号</Button>
+                {unusedProfiles.map((p) => (
+                  <Button key={p.name} type="weak" onClick={() => setDraft({ ...EMPTY, id: p.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^[^a-z]+/, 'tc-') || 'tccli', source: 'tccli', tccliProfile: p.name, defaultRegion: p.region ?? '' })}>
+                    导入 tccli:{p.name}
+                  </Button>
+                ))}
               </div>
-            </div>
-          ) : state?.writable ? (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" className="ci-btn primary" onClick={() => setDraft({ ...EMPTY })}>添加账号</button>
-              {unusedProfiles.map((p) => (
-                <button key={p.name} type="button" className="ci-btn" onClick={() => setDraft({ ...EMPTY, id: p.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^[^a-z]+/, 'tc-') || 'tccli', source: 'tccli', tccliProfile: p.name, defaultRegion: p.region ?? '' })}>
-                  导入 tccli:{p.name}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </details>
+            ) : null}
+          </div>
+        </Card.Body>
+      </Card>
     </div>
   )
 }

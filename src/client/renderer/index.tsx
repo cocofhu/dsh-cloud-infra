@@ -4,6 +4,7 @@ import { statusTone } from '../../view/spec.js'
 import { formatValue } from '../format.js'
 import type { EchartsChunk, ModuleRequire } from '../types.js'
 import { CHART_HEIGHT, chartOption } from './chart-option.js'
+import { Card, Form, Icon, MetricsBoard, SearchBox, Table, TabPanel, Tabs, Tag, TeaBadge, Text } from '../tea.js'
 
 const { useEffect, useMemo, useRef, useState } = React
 
@@ -80,16 +81,37 @@ export function PreBlock({ text, lines = 16 }: { text: string; lines?: number })
   )
 }
 
-function SectionTitle({ title }: { title?: string }) {
-  return title ? <div className="ci-sec-t">{title}</div> : null
+/** A titled Tea card; the unit every content component sits in. */
+export function Section({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <Card className="ci-card">
+      <Card.Body title={title}>{children}</Card.Body>
+    </Card>
+  )
 }
 
+const TAG_THEME = { neutral: 'default', info: 'primary', success: 'success', warning: 'warning', danger: 'error' } as const
+const DOT_THEME = { info: 'default', success: 'success', warning: 'warning', danger: 'danger' } as const
+
+/** Tone label as a Tea Tag, or with `dot` a status dot plus text (Tea Badge). */
 export function Badge({ tone, children, dot }: { tone: Tone; children: React.ReactNode; dot?: boolean }) {
-  return <span className={`ci-badge ${tone}${dot ? ' st' : ''}`}>{dot ? <span className="ci-dot" /> : null}{children}</span>
+  if (dot) {
+    return (
+      <span className="ci-status">
+        {tone === 'neutral' ? <span className="ci-dot" /> : <TeaBadge dot theme={DOT_THEME[tone]} />}
+        {children}
+      </span>
+    )
+  }
+  return <Tag theme={TAG_THEME[tone]} className="ci-tag">{children}</Tag>
+}
+
+export function Spinner() {
+  return <Icon type="loading" />
 }
 
 export function Value({ value, format }: { value: JsonValue | undefined; format?: Format }) {
-  if (value === null || value === undefined || value === '') return <span style={{ color: 'var(--ci-weak)' }}>-</span>
+  if (value === null || value === undefined || value === '') return <Text theme="weak">-</Text>
   switch (format) {
     case 'status':
       return <Badge tone={statusTone(value)} dot>{String(value)}</Badge>
@@ -103,20 +125,11 @@ export function Value({ value, format }: { value: JsonValue | undefined; format?
 
 registerViewComponent('group', ({ node, render: r }) => <div className="ci-col">{node.children.map((c, i) => r(c, i))}</div>)
 
-registerViewComponent('tabs', ({ node, render: r }) => {
-  const [active, setActive] = useState(0)
-  const current = node.tabs[Math.min(active, node.tabs.length - 1)]
-  return (
-    <div>
-      <div className="ci-tabs" role="tablist">
-        {node.tabs.map((t, i) => (
-          <button key={i} type="button" role="tab" aria-selected={i === active} className={`ci-tab${i === active ? ' on' : ''}`} onClick={() => setActive(i)}>{t.label}</button>
-        ))}
-      </div>
-      {current ? r(current.body) : null}
-    </div>
-  )
-})
+registerViewComponent('tabs', ({ node, render: r }) => (
+  <Tabs tabs={node.tabs.map((t, i) => ({ id: String(i), label: t.label }))} animated={false} destroyInactiveTabPanel>
+    {node.tabs.map((t, i) => <TabPanel key={i} id={String(i)}>{r(t.body)}</TabPanel>)}
+  </Tabs>
+))
 
 // ---- data ----
 
@@ -128,93 +141,85 @@ function compare(a: JsonValue, b: JsonValue): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true })
 }
 
+interface SortBy { by: string; order: 'asc' | 'desc' | undefined }
+
 registerViewComponent('table', ({ node }) => {
-  const [page, setPage] = useState(0)
+  const [pageIndex, setPageIndex] = useState(1)
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null)
+  const [sorts, setSorts] = useState<SortBy[]>([])
+  const pageSize = node.pageSize || 10
+  const paged = node.rows.length > pageSize
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     let out = q ? node.rows.filter((r) => r.some((c) => c !== null && String(typeof c === 'object' ? JSON.stringify(c) : c).toLowerCase().includes(q))) : node.rows
-    if (sort) out = [...out].sort((a, b) => compare(a[sort.col] ?? null, b[sort.col] ?? null) * sort.dir)
+    const sort = sorts[0]
+    if (sort?.order) {
+      const col = Number(sort.by.slice(1))
+      const dir = sort.order === 'asc' ? 1 : -1
+      out = [...out].sort((a, b) => compare(a[col] ?? null, b[col] ?? null) * dir)
+    }
     return out
-  }, [node.rows, query, sort])
-  const pageSize = node.pageSize || 10
+  }, [node.rows, query, sorts])
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
-  const current = Math.min(page, pages - 1)
-  const visible = rows.slice(current * pageSize, current * pageSize + pageSize)
-  const toggleSort = (col: number) => setSort((s) => (s?.col === col ? (s.dir === 1 ? { col, dir: -1 } : null) : { col, dir: 1 }))
+  const current = Math.min(pageIndex, pages)
+  const visible = paged ? rows.slice((current - 1) * pageSize, current * pageSize) : rows
+  const columns = node.columns.map((c, i) => ({
+    key: `c${i}`,
+    header: c.title,
+    render: (row: JsonValue[]) => <Value value={row[i]} format={c.format} />,
+  }))
+  const addons = [Table.addons.sortable({ columns: columns.map((c) => c.key), value: sorts, onChange: (v: SortBy[]) => setSorts(v) })]
+  if (paged) {
+    addons.push(Table.addons.pageable({
+      recordCount: rows.length, pageIndex: current, pageSize, pageSizeVisible: false,
+      onPagingChange: (q: { pageIndex?: number }) => setPageIndex(q.pageIndex ?? 1),
+    }))
+  }
   return (
-    <div>
-      <SectionTitle title={node.title} />
-      {node.rows.length > pageSize ? (
+    <Section title={node.title}>
+      {paged ? (
         <div className="ci-tbar">
-          <span className="ci-grow" />
-          <input placeholder="输入关键字筛选" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} aria-label="筛选表格" />
+          <SearchBox size="m" placeholder="输入关键字筛选" value={query} aria-label="筛选表格"
+            onChange={(v: string) => { setQuery(v); setPageIndex(1) }} onClear={() => { setQuery(''); setPageIndex(1) }} />
         </div>
       ) : null}
-      <div className="ci-table-wrap">
-        <table className="ci-table">
-          <thead>
-            <tr>
-              {node.columns.map((c, i) => (
-                <th key={i} onClick={() => toggleSort(i)} aria-sort={sort?.col === i ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
-                  {c.title}{sort?.col === i ? <span className="ci-sort">{sort.dir === 1 ? '↑' : '↓'}</span> : null}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.length ? visible.map((r, ri) => (
-              <tr key={ri}>
-                {node.columns.map((c, ci) => {
-                  const v = r[ci]
-                  const title = v !== null && v !== undefined && typeof v !== 'object' ? String(v) : undefined
-                  return <td key={ci} title={title}><Value value={v} format={c.format} /></td>
-                })}
-              </tr>
-            )) : (
-              <tr><td colSpan={node.columns.length} className="empty">{query ? '没有匹配的数据' : '暂无数据'}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {node.rows.length > pageSize ? (
-        <div className="ci-pager">
-          <span>共 {rows.length} 项{rows.length !== node.rows.length ? `（筛选自 ${node.rows.length} 项）` : ''}</span>
-          <span className="ci-grow" />
-          <span>{current + 1} / {pages} 页</span>
-          <button type="button" className="ci-turn" aria-label="上一页" disabled={current === 0} onClick={() => setPage(current - 1)}>‹</button>
-          <button type="button" className="ci-turn" aria-label="下一页" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>›</button>
-        </div>
-      ) : null}
+      <Table
+        columns={columns}
+        records={visible}
+        recordKey={(_: JsonValue[], i: number) => String((current - 1) * pageSize + i)}
+        addons={addons}
+        topTip={visible.length ? undefined : <div className="ci-empty">{query ? '没有匹配的数据' : '暂无数据'}</div>}
+      />
       {node.total > node.rows.length ? <div className="ci-note">共 {node.total} 行，展示前 {node.rows.length} 行。</div> : null}
-    </div>
+    </Section>
   )
 })
 
 registerViewComponent('kv', ({ node }) => (
-  <div>
-    <SectionTitle title={node.title} />
-    <div className="ci-kv">
+  <Section title={node.title}>
+    <Form readonly layout="fixed" fixedLabelWidth={88} className="ci-kv">
       {node.items.map((it, i) => (
-        <div key={i} className="ci-kv-i">
-          <span className="ci-kv-l">{it.label}</span>
-          <span className="ci-kv-v"><Value value={it.value} format={it.format} /></span>
-        </div>
+        <Form.Item key={i} label={it.label}>
+          <Form.Text><Value value={it.value} format={it.format} /></Form.Text>
+        </Form.Item>
       ))}
-    </div>
-  </div>
+    </Form>
+  </Section>
 ))
 
+const TONE_TEXT = { neutral: undefined, info: 'primary', success: 'success', warning: 'warning', danger: 'danger' } as const
+
 registerViewComponent('stats', ({ node }) => (
-  <div className="ci-stats">
-    {node.items.map((it, i) => (
-      <div key={i} className={`ci-stat ${it.tone ?? ''}`}>
-        <div className="ci-stat-l">{it.label}</div>
-        <div className="ci-stat-v">{formatValue(it.value, it.format)}{it.unit ? <small>{it.unit}</small> : null}</div>
+  <Card className="ci-card">
+    <Card.Body>
+      <div className="ci-stats">
+        {node.items.map((it, i) => (
+          <MetricsBoard key={i} title={it.label} unit={it.unit}
+            value={<Text theme={TONE_TEXT[it.tone ?? 'neutral']}>{formatValue(it.value, it.format)}</Text>} />
+        ))}
       </div>
-    ))}
-  </div>
+    </Card.Body>
+  </Card>
 ))
 
 // ---- charts ----
@@ -260,25 +265,24 @@ export function EChart({ option, height, title }: { option: Record<string, unkno
   }, [option, dark])
   useEffect(() => () => { instance.current?.dispose(); instance.current = null }, [])
   return (
-    <div>
-      <SectionTitle title={title} />
+    <Section title={title}>
       <div className="ci-chart" style={{ height }}>
         <div ref={el} style={{ width: '100%', height: '100%' }} />
         {state !== 'ready' ? (
-          <div className="ci-chart-ph">{state === 'loading' ? <><span className="ci-spin" />加载图表…</> : <span className="ci-err">图表加载失败：{error}</span>}</div>
+          <div className="ci-chart-ph">{state === 'loading' ? <><Spinner />加载图表…</> : <span className="ci-err">图表加载失败：{error}</span>}</div>
         ) : null}
       </div>
-    </div>
+    </Section>
   )
 }
 
 registerViewComponent('chart', ({ node }) => {
   const option = useMemo(() => chartOption(node as CompiledChart), [node])
   return (
-    <div>
+    <>
       <EChart option={option} height={CHART_HEIGHT} title={node.title} />
       {node.truncated ? <div className="ci-note">数据点过多，只展示最近的部分。</div> : null}
-    </div>
+    </>
   )
 })
 

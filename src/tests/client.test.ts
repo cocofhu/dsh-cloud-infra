@@ -51,7 +51,7 @@ test('every component kind renders server-side', () => {
     { label: '表格', items: [{ kind: 'table', data: { ref: 'r1' } }] },
   ] })
   const out = html(React.createElement(client.ViewRenderer, { view: v }))
-  for (const s of ['测试', '概览', '表格', 'ci-stat', '核', 'ci-kv', 'ci-chart']) assert.ok(out.includes(s), s)
+  for (const s of ['测试', '概览', '表格', 'tea-metrics-board', '核', 'tea-form__item', 'ci-chart', 'tea-tabs', 'tea-card']) assert.ok(out.includes(s), s)
 })
 
 test('table renders rows, status badges and inferred headers', () => {
@@ -65,9 +65,11 @@ test('table pages without inner scrolling and shows status as dot + text', () =>
   const v = compileView({ v: 1, items: [{ kind: 'table', data: many, columns: [{ key: 'id' }, { key: 'state', format: 'status' }] }] }, { resolve: () => null }).view
   const out = html(React.createElement(client.ViewRenderer, { view: v }))
   assert.equal((out.match(/<tr>/g) ?? []).length, 1 + 10)
-  assert.match(out, /共 23 项/)
-  assert.match(out, /1 \/ 3 页/)
-  assert.match(out, /class="ci-badge success st"><span class="ci-dot"><\/span>RUNNING/)
+  assert.match(out, /class="tea-pagination__text">共 <strong>23<\/strong>/)
+  assert.match(out, /tea-pagination__inputpagenum" value="1"/)
+  assert.ok(out.includes('tea-table'))
+  assert.match(out, /<span class="ci-status"><span class="tea-badge tea-badge--dot is-success-dark"><\/span>RUNNING/)
+  assert.match(out, /<span class="ci-status"><span class="ci-dot"><\/span>STOPPED/)
 })
 
 test('unknown nodes from older views fall back to folded JSON', () => {

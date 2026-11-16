@@ -2,17 +2,22 @@
  * Bundle the browser half into DSH ModuleLoader scripts:
  *   lib/client.js          entry (slots, renderers, settings card)
  *   lib/client.echarts.js  ECharts, loaded on demand through require.async
- * React stays external and is resolved from the shared module table.
+ * React stays external and is resolved from the shared module table; Tea (tea-component)
+ * and its stylesheet are bundled into client.js.
  * Also builds the standalone component design page into lib/design-page/.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { build } from 'esbuild'
+import { teaCssPlugin } from './tea-css.ts'
+import { teaIconsPlugin } from './tea-icons-plugin.ts'
 
 const ROOT = join(import.meta.dirname, '..')
 const OUT = join(ROOT, 'lib')
 const PKG = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { name: string }).name
 const minify = !process.argv.includes('--dev')
+const plugins = [teaIconsPlugin(ROOT), teaCssPlugin(ROOT)]
 
 async function bundle(entry: string): Promise<string> {
   const result = await build({
@@ -30,6 +35,7 @@ async function bundle(entry: string): Promise<string> {
     minify,
     legalComments: 'none',
     logLevel: 'warning',
+    plugins,
   })
   return result.outputFiles[0]!.text
 }
@@ -45,6 +51,8 @@ const echarts = wrap(await bundle('src/client/echarts/index.ts'), 'client.echart
 if (/echarts\/core|zrender/.test(main)) throw new Error('client.js must not include ECharts; import it only from the lazy chunk')
 writeFileSync(join(OUT, 'client.js'), main)
 writeFileSync(join(OUT, 'client.echarts.js'), echarts)
+const teaDir = dirname(createRequire(join(ROOT, 'package.json')).resolve('tea-component/package.json'))
+copyFileSync(join(teaDir, 'Attribution.txt'), join(OUT, 'tea-component.Attribution.txt'))
 
 await build({
   entryPoints: [join(ROOT, 'src/client/testing.ts')],
@@ -53,11 +61,13 @@ await build({
   format: 'cjs',
   platform: 'node',
   target: 'node22',
+  mainFields: ['module', 'main'],
   external: ['react', 'react-dom'],
   jsx: 'transform',
   jsxFactory: 'React.createElement',
   jsxFragment: 'React.Fragment',
   logLevel: 'warning',
+  plugins,
 })
 const DESIGN = join(OUT, 'design-page')
 rmSync(DESIGN, { recursive: true, force: true })
@@ -78,6 +88,7 @@ await build({
   minify,
   legalComments: 'none',
   logLevel: 'warning',
+  plugins,
 })
 writeFileSync(join(DESIGN, 'index.html'), `<!doctype html>
 <html lang="zh-CN">

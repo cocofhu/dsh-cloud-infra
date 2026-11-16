@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { CompiledView } from '../view/spec.js'
-import { Badge, PreBlock, ViewRenderer } from './renderer/index.js'
+import { Badge, PreBlock, Spinner, ViewRenderer } from './renderer/index.js'
 import { cardsEnabled } from './chat-card.js'
 import type { ToolResultBlock, ToolViewProps } from './types.js'
 
@@ -59,7 +59,7 @@ function Shell({ title, sub, badges, open, toggle, children, busy }: {
   return (
     <div className="ci-root ci-tool">
       <button type="button" className="ci-tool-head" onClick={toggle} aria-expanded={open} disabled={!children}>
-        {busy ? <span className="ci-spin" /> : <Chevron open={open && !!children} />}
+        {busy ? <Spinner /> : <Chevron open={open && !!children} />}
         <span className="ci-tool-title">{title}</span>
         <span className="ci-tool-sub">{sub}</span>
         {badges}

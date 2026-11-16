@@ -5,7 +5,9 @@
  */
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
+import TEA_CSS from 'virtual:tea-css'
 import { CSS as COMPONENT_CSS, TOKENS_LIGHT } from '../client/styles.js'
+import { Button, Input, Table } from '../client/tea.js'
 import { Badge, PreBlock, Value, ViewRenderer } from '../client/renderer/index.js'
 import { CallToolView, VisualizeToolView } from '../client/toolviews.js'
 import type { ToolViewProps } from '../client/types.js'
@@ -62,7 +64,7 @@ body[data-ds-dark-theme]{background:#11131c}
 function useStyles() {
   useEffect(() => {
     const el = document.createElement('style')
-    el.textContent = COMPONENT_CSS + PAGE_CSS
+    el.textContent = TEA_CSS + COMPONENT_CSS + PAGE_CSS
     document.head.appendChild(el)
     return () => el.remove()
   }, [])
@@ -79,7 +81,7 @@ function Sample({ sample }: { sample: DesignSample }) {
         <h3>{sample.title}</h3>
         <span className="dp-tag">{sample.group}</span>
         <span className="dp-grow" />
-        <button type="button" className="ci-btn" onClick={() => setShowSpec(!showSpec)}>{showSpec ? '隐藏 Spec' : '查看 Spec'}</button>
+        <Button type="weak" onClick={() => setShowSpec(!showSpec)}>{showSpec ? '隐藏 Spec' : '查看 Spec'}</Button>
       </div>
       <p className="dp-desc">{sample.description}</p>
       <div className="dp-frame">
@@ -114,7 +116,7 @@ function Section({ id, title, tag, desc, children }: { id: string; title: string
 function Foundations() {
   return (
     <>
-      <Section id="tokens" title="颜色 token" tag="基础" desc="组件采用腾讯云控制台（Tea）的视觉规范：直角、12px 正文、#006eff 主色。颜色都来自 --ci-* 变量，DSH 切换到暗色时整体换成 Tea 暗色取值。">
+      <Section id="tokens" title="颜色 token" tag="基础" desc="组件直接使用腾讯云控制台组件库 Tea（tea-component）：表格、标签页、指标卡、表单、按钮和标签都是 Tea 组件，随 DSH 的亮色 / 暗色切换 Tea 主题。下面的 --ci-* 变量只用于插件自己的外框和 ECharts 主题。">
         <div className="dp-swatches">
           {TOKEN_NAMES.filter((k) => !k.endsWith('shadow')).map((k) => (
             <div key={k} className="dp-sw" title={`--${k}`}><i style={{ background: `var(--${k})` }} /><span>{k.slice(3)}</span></div>
@@ -126,25 +128,25 @@ function Foundations() {
           <div className="dp-row">{TONES.map((t) => <Badge key={t} tone={t}>{t}</Badge>)}</div>
           <div className="dp-row" style={{ gap: 20 }}>{STATUS_WORDS.map((w) => <span key={w}>{renderFormat('status', w)}</span>)}</div>
           <div className="dp-row">
-            <button type="button" className="ci-btn primary">主按钮</button>
-            <button type="button" className="ci-btn">次按钮</button>
-            <button type="button" className="ci-btn danger">危险操作</button>
-            <button type="button" className="ci-btn" disabled>禁用</button>
-            <input className="ci-input" placeholder="输入框" aria-label="示例输入框" />
+            <Button type="primary">主按钮</Button>
+            <Button type="weak">次按钮</Button>
+            <Button type="error">危险操作</Button>
+            <Button type="weak" disabled>禁用</Button>
+            <Input placeholder="输入框" aria-label="示例输入框" />
           </div>
         </div>
       </Section>
       <Section id="formats" title="值格式 format" tag="基础" desc="表格列、kv、stats 和图表数值共用这 5 种格式。">
-        <div className="ci-table-wrap">
-          <table className="ci-table">
-            <thead><tr><th>format</th><th>输入</th><th>显示</th><th>说明</th></tr></thead>
-            <tbody>
-              {FORMATS.map(([f, v, note]) => (
-                <tr key={f ?? 'none'}><td><code>{f ?? '—'}</code></td><td><code>{JSON.stringify(v)}</code></td><td>{renderFormat(f, v)}</td><td style={{ color: 'var(--ci-label)' }}>{note}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          records={FORMATS}
+          recordKey={(r: (typeof FORMATS)[number]) => r[0] ?? 'none'}
+          columns={[
+            { key: 'f', header: 'format', render: ([f]: (typeof FORMATS)[number]) => <code>{f ?? '—'}</code> },
+            { key: 'v', header: '输入', render: ([, v]: (typeof FORMATS)[number]) => <code>{JSON.stringify(v)}</code> },
+            { key: 'out', header: '显示', render: ([f, v]: (typeof FORMATS)[number]) => renderFormat(f, v) },
+            { key: 'note', header: '说明', render: ([, , note]: (typeof FORMATS)[number]) => <span style={{ color: 'var(--ci-label)' }}>{note}</span> },
+          ]}
+        />
       </Section>
     </>
   )
@@ -236,7 +238,7 @@ function App() {
           <h2>组件设计页</h2>
           <span className="dp-sub">@cocofhu/dsh-cloud-infra · {SAMPLES.length} 个示例</span>
           <span className="dp-grow" />
-          <button type="button" className="ci-btn" onClick={() => setDark(!dark)}>{dark ? '切换亮色' : '切换暗色'}</button>
+          <Button type="weak" onClick={() => setDark(!dark)}>{dark ? '切换亮色' : '切换暗色'}</Button>
         </header>
         <main className="dp-main">
           <p className="dp-intro">

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import TEA_CSS from 'virtual:tea-css'
 import { CSS, STYLE_ID } from './styles.js'
 import { SettingsCard } from './settings.js'
 import { CallToolView, VisualizeToolView } from './toolviews.js'
@@ -15,7 +16,7 @@ function ensureCss(): () => void {
     style.id = STYLE_ID
     document.head.appendChild(style)
   }
-  style.textContent = CSS
+  style.textContent = TEA_CSS + CSS
   return () => { style?.remove() }
 }
 
