@@ -52,6 +52,8 @@ Cloud View 组件：`group` `tabs` `card` `table` `kv` `stats` `chart`（line、
 
 ## 组件设计页
 
+组件采用腾讯云控制台（Tea）的视觉规范，跟随 DSH 切换亮色和暗色。为避免许可证问题，没有打包 `tea-component` 本身（它的 npm 许可证是 `UNLICENSED`），样式在 `src/client/styles.ts` 里按 Tea 的取值实现。
+
 所有 Cloud View 组件的示例集中在一个设计页里，每个示例都用真实的 Spec 经过与 `cloud_visualize` 相同的校验和编译，可以查看对应的 JSON，并切换亮色和暗色主题。
 - 在 DSH 中：「插件 → @cocofhu/dsh-cloud-infra」账号卡片右上角的「组件设计页」，或直接访问 `/cloud-infra/design/`。
 - 单独运行：`pnpm design`，然后打开 http://127.0.0.1:5180/cloud-infra/design/ 。

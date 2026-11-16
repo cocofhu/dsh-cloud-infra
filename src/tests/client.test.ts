@@ -64,6 +64,30 @@ test('table renders rows, status badges and inferred headers', () => {
   for (const s of ['ins-1', 'ins-2', 'RUNNING', 'state', 'zone']) assert.ok(out.includes(s), s)
 })
 
+test('table pages without inner scrolling and shows status as dot + text', () => {
+  const many = Array.from({ length: 23 }, (_, i) => ({ id: `ins-${i}`, state: i % 2 ? 'RUNNING' : 'STOPPED' }))
+  const v = compileView({ v: 1, body: { kind: 'table', data: many, columns: [{ key: 'id' }, { key: 'state', format: 'status' }] } } as ViewRoot, { resolve: () => null }).view
+  const out = html(React.createElement(client.ViewRenderer, { view: v }))
+  assert.equal((out.match(/<tr>/g) ?? []).length, 1 + 10)
+  assert.match(out, /共 23 项/)
+  assert.match(out, /1 \/ 3 页/)
+  assert.match(out, /class="ci-badge success st"><span class="ci-dot"><\/span>RUNNING/)
+})
+
+test('timeline accepts tone names as well as status words', () => {
+  const v = view({ kind: 'timeline', data: [{ t: 1, l: 'a', s: 'danger' }, { t: 2, l: 'b', s: 'RUNNING' }], time: 't', label: 'l', tone: 's' })
+  const out = html(React.createElement(client.ViewRenderer, { view: v }))
+  assert.match(out, /<li class="danger">/)
+  assert.match(out, /<li class="success">/)
+})
+
+test('long JSON folds instead of scrolling', () => {
+  const v = view({ kind: 'json', data: { list: Array.from({ length: 40 }, (_, i) => i) } })
+  const out = html(React.createElement(client.ViewRenderer, { view: v }))
+  assert.match(out, /展开全部（\d+ 行）/)
+  assert.ok(!out.includes(' 39\n'), 'folded lines are not rendered')
+})
+
 test('unknown or broken nodes fall back to JSON instead of crashing', () => {
   const out = html(React.createElement(client.ViewRenderer, { view: { v: 1, body: { kind: 'future-widget', x: 1 } } as unknown as CompiledView }))
   assert.match(out, /future-widget/)

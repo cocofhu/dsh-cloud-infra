@@ -32,7 +32,8 @@ export function chartOption(node: CompiledChart): Option {
           radius: node.chart === 'donut' ? ['45%', '70%'] : '70%',
           center: ['40%', '50%'],
           data: node.slices ?? [],
-          label: { formatter: '{b}: {d}%' },
+          label: { formatter: '{d}%', textBorderWidth: 0 },
+          labelLine: { length: 8, length2: 8 },
         }],
       }
     case 'gauge': {
@@ -61,7 +62,7 @@ export function chartOption(node: CompiledChart): Option {
         grid: { left: 12, right: 16, top: 12, bottom: 48, containLabel: true },
         xAxis: { type: 'category', data: (node.categories ?? []).map((c) => axisLabel(c, node.xFormat)), splitArea: { show: true } },
         yAxis: { type: 'category', data: (node.yCategories ?? []).map((c) => String(c)), splitArea: { show: true } },
-        visualMap: { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 0 },
+        visualMap: { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 0, inRange: { color: ['#d5e7ff', '#006eff', '#002da0'] } },
         series: [{ type: 'heatmap', data: node.cells ?? [], label: { show: (node.cells?.length ?? 0) <= 100 } }],
       }
     }

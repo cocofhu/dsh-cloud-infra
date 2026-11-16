@@ -16,35 +16,42 @@ echarts.use([
   LabelLayout, UniversalTransition, CanvasRenderer,
 ])
 
-const PALETTE = ['#4d6bfe', '#20a97c', '#f0973a', '#e0668e', '#7f6bd6', '#2bb3c0', '#d9a514', '#8c97a8', '#5ab1ef', '#c05050']
+/** Tencent Cloud console chart palette. */
+const PALETTE = ['#006eff', '#29cc85', '#ffbb00', '#ff584c', '#9741d9', '#1fc0cc', '#7dd936', '#ff9c19', '#e63984', '#655ce6']
+const PALETTE_DARK = ['#2684ff', '#3dd598', '#ffc53d', '#ff7a6e', '#a96be3', '#3fd0db', '#95e05a', '#ffb04d', '#ee5d9c', '#837cf0']
 
-function cssVar(name: string, fallback: string): string {
-  const v = getComputedStyle(document.body).getPropertyValue(name).trim()
+function cssVar(el: HTMLElement, name: string, fallback: string): string {
+  const v = getComputedStyle(el).getPropertyValue(name).trim()
   return v || fallback
 }
 
-/** Theme from DSH design tokens, rebuilt on every mount/update so light/dark switches follow. */
-function theme(dark: boolean): Record<string, unknown> {
-  const text = cssVar('--dsw-alias-label-secondary', dark ? '#c9cdd4' : '#4e5969')
-  const faint = cssVar('--dsw-alias-label-tertiary', dark ? '#8a919f' : '#86909c')
-  const line = cssVar('--dsw-alias-border-l2', dark ? '#3a3f4b' : '#e5e6eb')
-  const tooltipBg = cssVar('--dsw-alias-bg-layer-1', dark ? '#1f2329' : '#ffffff')
+/** Theme from the Cloud View tokens on the chart container, rebuilt on every mount/update so light/dark switches follow. */
+function theme(el: HTMLElement, dark: boolean): Record<string, unknown> {
+  const text = cssVar(el, '--ci-text', dark ? 'rgba(211,222,235,0.9)' : 'rgba(0,0,0,0.9)')
+  const label = cssVar(el, '--ci-label', dark ? 'rgba(211,222,235,0.6)' : 'rgba(0,0,0,0.4)')
+  const line = cssVar(el, '--ci-border', dark ? '#344158' : '#e7eaef')
+  const axis = cssVar(el, '--ci-border-strong', dark ? '#344158' : '#cfd5de')
+  const tooltipBg = cssVar(el, '--ci-bg', dark ? '#1e222d' : '#ffffff')
   return {
-    color: PALETTE,
+    color: dark ? PALETTE_DARK : PALETTE,
     backgroundColor: 'transparent',
-    textStyle: { color: text, fontFamily: 'inherit' },
-    legend: { textStyle: { color: text } },
-    tooltip: { backgroundColor: tooltipBg, borderColor: line, textStyle: { color: cssVar('--dsw-alias-label-primary', text) } },
-    categoryAxis: { axisLine: { lineStyle: { color: line } }, axisTick: { lineStyle: { color: line } }, axisLabel: { color: faint }, splitLine: { lineStyle: { color: line } } },
-    valueAxis: { axisLine: { lineStyle: { color: line } }, axisLabel: { color: faint }, splitLine: { lineStyle: { color: line } } },
-    timeAxis: { axisLabel: { color: faint }, splitLine: { lineStyle: { color: line } } },
+    textStyle: { color: text, fontFamily: 'inherit', fontSize: 12 },
+    legend: { textStyle: { color: label }, itemWidth: 12, itemHeight: 8, icon: 'rect' },
+    tooltip: { backgroundColor: tooltipBg, borderColor: axis, borderRadius: 0, textStyle: { color: text, fontSize: 12 }, extraCssText: 'box-shadow:0 2px 4px 0 rgba(54,58,80,0.32);' },
+    categoryAxis: { axisLine: { lineStyle: { color: axis } }, axisTick: { show: false }, axisLabel: { color: label }, splitLine: { lineStyle: { color: line } } },
+    valueAxis: { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: label }, splitLine: { lineStyle: { color: line, type: 'dashed' } } },
+    timeAxis: { axisLine: { lineStyle: { color: axis } }, axisLabel: { color: label }, splitLine: { lineStyle: { color: line } } },
     title: { textStyle: { color: text } },
-    gauge: { axisLabel: { color: faint }, detail: { color: text } },
+    gauge: { axisLine: { lineStyle: { color: [[1, line]] } }, splitLine: { lineStyle: { color: axis } }, axisTick: { lineStyle: { color: axis } }, axisLabel: { color: label }, detail: { color: text } },
+    pie: { label: { color: text } },
+    radar: { axisName: { color: label }, axisLine: { lineStyle: { color: line } }, splitLine: { lineStyle: { color: line } }, splitArea: { areaStyle: { color: ['transparent'] } } },
+    bar: { barMaxWidth: 28 },
+    line: { symbolSize: 4, lineStyle: { width: 2 } },
   }
 }
 
 export function mount(el: HTMLElement, option: Record<string, unknown>, dark: boolean) {
-  let chart = echarts.init(el, theme(dark) as never, { renderer: 'canvas' })
+  let chart = echarts.init(el, theme(el, dark) as never, { renderer: 'canvas' })
   let currentDark = dark
   chart.setOption(option as never)
   const observer = new ResizeObserver(() => chart.resize())
@@ -53,7 +60,7 @@ export function mount(el: HTMLElement, option: Record<string, unknown>, dark: bo
     update(next: Record<string, unknown>, nextDark: boolean) {
       if (nextDark !== currentDark) {
         chart.dispose()
-        chart = echarts.init(el, theme(nextDark) as never, { renderer: 'canvas' })
+        chart = echarts.init(el, theme(el, nextDark) as never, { renderer: 'canvas' })
         currentDark = nextDark
       }
       chart.setOption(next as never, true)

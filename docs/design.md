@@ -333,7 +333,7 @@ type Aggregate = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'first'
 
 - 用 `echarts/core` 按需注册 line、bar、pie、scatter、heatmap、gauge、graph、tree、treemap、sankey、radar、funnel、boxplot、candlestick 和常用组件，打成单独的懒加载 chunk `client.echarts.js`（约 870KB）。只有页面上出现图表时，才通过 `require.async('./client.echarts.js')` 加载。构建脚本会检查主入口不含 ECharts。
 - `chart` 是简化形式，覆盖大多数场景；`echarts` 直接透传 option，`data` 中的绑定会作为 `dataset.source` 注入。透传的 option 会先经过 §7.3 的清洗。
-- 主题根据 DSH 的 `--dsw-*` CSS token 在运行时生成，切换深浅色时重建。
+- 主题使用腾讯云控制台图表配色，坐标轴、文字等颜色从图表容器上的 `--ci-*` token 读取，切换深浅色时重建。token 的透明度写成 `0.9` 而不是 `.9`，因为 ECharts 的颜色解析不认后者。
 
 ### 8.4 Client 渲染器
 
@@ -343,7 +343,9 @@ const registry = new Map<string, ViewComponent<any>>()
 ```
 
 - 未注册的 `kind` 或渲染异常会退回 `json` 视图，不会让整张卡片失败。
-- 组件自带实现，只依赖共享模块表里的 `react`，样式统一使用 `ci-` 前缀和 DSH 的 `--dsw-*` token。这样就不依赖 DSH 内部组件的 API 稳定性。
+- 组件自带实现，只依赖共享模块表里的 `react`，样式统一使用 `ci-` 前缀。这样就不依赖 DSH 内部组件的 API 稳定性。
+- 视觉采用腾讯云控制台的 Tea 规范：直角、12px 正文、`#006eff` 主色、表格和标签页样式、“状态点 + 文字”的状态显示、MetricsBoard 风格的统计卡片、“共 N 项 … 1 / N 页 ‹ ›”分页。颜色集中在 `styles.ts` 的 `--ci-*` token 中，亮色和暗色取值来自 Tea 的 `tea.css` 和 `tea-dark.css`，DSH 切换到暗色（`body[data-ds-dark-theme]`）时一起切换。
+- 没有直接打包 `tea-component`：它的 npm 许可证是 `UNLICENSED`，没有授予再分发权利，而 DSH 插件必须把客户端代码打包进 `lib/client.js` 一起发布。它的 CSS 约 300KB，还带有约 100 条全局选择器，需要额外隔离。如果日后获得授权，可以把它作为和 ECharts 一样的懒加载 chunk 接入。
 - 表格支持筛选、排序和分页，每页行数由 `pageSize` 指定。Markdown 只支持安全子集，链接只允许 http(s)。
 
 ### 8.5 扩展方式

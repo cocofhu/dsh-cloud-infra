@@ -5,7 +5,7 @@
  */
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import { CSS as COMPONENT_CSS } from '../client/styles.js'
+import { CSS as COMPONENT_CSS, TOKENS_LIGHT } from '../client/styles.js'
 import { Badge, PreBlock, Value, ViewRenderer } from '../client/renderer/index.js'
 import { CallToolView, VisualizeToolView } from '../client/toolviews.js'
 import type { ToolViewProps } from '../client/types.js'
@@ -19,62 +19,44 @@ const { useEffect, useMemo, useState } = React
   async: () => import('../client/echarts/index.js'),
 })
 
-const LIGHT = {
-  'bg-layer-1': '#fff', 'bg-layer-2': '#fff', 'bg-layer-3': '#fff', 'border-l1': '#0000000a', 'border-l2': '#0000001a',
-  'brand-primary-new-colorprimary-new-color': '#4176e6', 'button-elevated-fill': '#fff', 'button-primary-fill': '#0f1115',
-  'interactive-bg-hover': '#2631480f', 'interactive-bg-hover-danger': '#ec13130d', 'label-caption': '#adb2b8',
-  'label-primary': '#0f1115', 'label-primary-foreground': '#fff', 'label-secondary': '#61666b', 'label-tertiary': '#81858c',
-  'state-business-primary': '#4176e6', 'state-business-tertiary': '#e4edfd', 'state-error-primary': '#ec1313',
-  'state-success-primary': '#22c55e', 'state-success-tertiary': '#e6faed', 'state-warn-label': '#dd8629', 'state-warn-tertiary': '#fef5e7',
-}
-const DARK: typeof LIGHT = {
-  'bg-layer-1': '#232324', 'bg-layer-2': '#2c2c2e', 'bg-layer-3': '#353638', 'border-l1': '#ffffff0f', 'border-l2': '#ffffff1f',
-  'brand-primary-new-colorprimary-new-color': '#5686fe', 'button-elevated-fill': '#43454a', 'button-primary-fill': '#f9fafb',
-  'interactive-bg-hover': '#ffffff14', 'interactive-bg-hover-danger': '#f25a5a26', 'label-caption': '#81858c',
-  'label-primary': '#f9fafb', 'label-primary-foreground': '#0f1115', 'label-secondary': '#cfd3d6', 'label-tertiary': '#adb2b8',
-  'state-business-primary': '#7aaaff', 'state-business-tertiary': '#34415b', 'state-error-primary': '#f25a5a',
-  'state-success-primary': '#22c55e', 'state-success-tertiary': '#233c2c', 'state-warn-label': '#dd8629', 'state-warn-tertiary': '#27241f',
-}
-const vars = (t: typeof LIGHT) => Object.entries(t).map(([k, v]) => `--dsw-alias-${k}:${v}`).join(';')
+const TOKEN_NAMES = [...TOKENS_LIGHT.matchAll(/--(ci-[a-z-]+):/g)].map((m) => m[1]!)
 
 const PAGE_CSS = `
-:root{${vars(LIGHT)};--dp-page:#f6f7f9}
-body[data-ds-dark-theme]{${vars(DARK)};--dp-page:#1a1a1b}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:72px}
-body{margin:0;background:var(--dp-page);color:var(--dsw-alias-label-primary);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px}
-.dp-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;height:56px;padding:0 24px;background:var(--dsw-alias-bg-layer-1);border-bottom:1px solid var(--dsw-alias-border-l2)}
-.dp-top h1{font-size:16px;margin:0;font-weight:650}
-.dp-top .dp-sub{color:var(--dsw-alias-label-tertiary);font-size:13px}
-.dp-top .dp-grow{flex:1}
-.dp-layout{display:grid;grid-template-columns:220px minmax(0,1fr);max-width:1320px;margin:0 auto}
-.dp-nav{position:sticky;top:56px;align-self:start;height:calc(100vh - 56px);overflow:auto;padding:20px 12px 40px 24px}
-.dp-nav h4{margin:16px 0 6px;font-size:12px;color:var(--dsw-alias-label-tertiary);font-weight:600}
-.dp-nav a{display:block;padding:5px 10px;border-radius:8px;color:var(--dsw-alias-label-secondary);text-decoration:none;font-size:13px}
-.dp-nav a:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.dp-nav a.on{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);font-weight:600}
-.dp-main{padding:24px 32px 80px;min-width:0}
-.dp-intro{margin:0 0 28px;color:var(--dsw-alias-label-secondary);line-height:1.7;max-width:820px}
-.dp-intro code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--dsw-alias-interactive-bg-hover);padding:1px 5px;border-radius:4px}
-.dp-sec{margin:0 0 36px}
-.dp-sec h2{font-size:17px;margin:0 0 4px;font-weight:650}
-.dp-sec h3{font-size:12px;margin:0 0 4px;color:var(--dsw-alias-label-tertiary);font-weight:600;letter-spacing:.02em}
-.dp-desc{margin:0 0 12px;color:var(--dsw-alias-label-secondary);line-height:1.6;max-width:860px}
-.dp-frame{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;padding:18px}
-.dp-bar{display:flex;gap:8px;margin-top:10px}
-.dp-spec{margin-top:10px}
-.dp-err{color:var(--dsw-alias-state-error-primary);white-space:pre-wrap;font-size:12px}
-.dp-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
-.dp-sw{display:flex;align-items:center;gap:10px;font-size:12px;min-width:0}
-.dp-sw i{width:34px;height:34px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);flex:none}
-.dp-sw span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}
-.dp-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.dp-fmt{width:100%;border-collapse:collapse;font-size:13px}
-.dp-fmt td,.dp-fmt th{text-align:left;padding:7px 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.dp-fmt th{color:var(--dsw-alias-label-tertiary);font-weight:600;font-size:12px}
-.dp-fmt code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-.dp-cards{display:flex;flex-direction:column;gap:6px;max-width:860px}
-@media (max-width:860px){.dp-layout{grid-template-columns:1fr}.dp-nav{display:none}.dp-main{padding:20px 16px 60px}}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:#f3f4f7;font-family:Roboto,"San Francisco","Helvetica Neue",Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+body[data-ds-dark-theme]{background:#11131c}
+.dp-app{min-height:100vh;font-size:12px}
+.dp-menu{position:fixed;left:0;top:0;bottom:0;width:200px;background:#1e222d;color:#c1c6c8;overflow:auto;z-index:6}
+.dp-menu-title{height:50px;display:flex;align-items:center;padding:0 20px;color:#fff;font-size:16px;font-weight:700;border-bottom:1px solid #262f3e}
+.dp-menu h4{margin:14px 20px 4px;font-size:12px;color:#888;font-weight:400}
+.dp-menu a{display:block;height:40px;line-height:40px;padding:0 20px 0 32px;color:#c1c6c8;text-decoration:none;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-menu a:hover{background:#262f3e}
+.dp-menu a.on{background:rgba(52,66,88,.6);color:#fff}
+.dp-body{margin-left:200px;min-width:0}
+.dp-head{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:20px;min-height:50px;padding:10px 20px;background:var(--ci-bg);border-bottom:1px solid var(--ci-border-strong)}
+.dp-head h2{margin:0;font-size:16px;font-weight:700;color:var(--ci-strong)}
+.dp-head .dp-sub{color:var(--ci-label)}
+.dp-head .dp-grow{flex:1}
+.dp-main{padding:20px;max-width:1200px}
+.dp-intro{margin:0 0 20px}
+.dp-intro code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.dp-sec{margin:0 0 20px;background:var(--ci-bg);box-shadow:var(--ci-shadow)}
+.dp-sec-h{display:flex;align-items:baseline;gap:12px;padding:16px 20px 12px;border-bottom:1px solid var(--ci-border)}
+.dp-sec-h h3{margin:0;font-size:14px;font-weight:700;color:var(--ci-strong)}
+.dp-sec-h .dp-tag{color:var(--ci-label)}
+.dp-sec-h .dp-grow{flex:1}
+.dp-desc{margin:0;padding:12px 20px 0;color:var(--ci-label);line-height:1.7}
+.dp-frame{padding:16px 20px 20px}
+.dp-frame.dp-sunk{background:var(--ci-bg-sub);margin:12px 20px 20px;padding:16px}
+.dp-spec{padding:0 20px 20px}
+.dp-err{color:var(--ci-danger);white-space:pre-wrap}
+.dp-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.dp-sw{display:flex;align-items:center;gap:10px;min-width:0}
+.dp-sw i{width:32px;height:32px;border:1px solid var(--ci-border);flex:none}
+.dp-sw span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ci-label);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.dp-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dp-cards{display:flex;flex-direction:column;gap:8px;max-width:880px}
+@media (max-width:900px){.dp-menu{display:none}.dp-body{margin-left:0}}
 `
 
 function useStyles() {
@@ -93,16 +75,17 @@ function Sample({ sample }: { sample: DesignSample }) {
   }, [sample])
   return (
     <section className="dp-sec" id={sample.id}>
-      <h3>{sample.group}</h3>
-      <h2>{sample.title}</h2>
-      <p className="dp-desc">{sample.description}</p>
-      <div className="dp-frame ci-root">
-        {compiled.view ? <ViewRenderer view={compiled.view} /> : <div className="dp-err">{compiled.error}</div>}
-      </div>
-      <div className="dp-bar">
+      <div className="dp-sec-h">
+        <h3>{sample.title}</h3>
+        <span className="dp-tag">{sample.group}</span>
+        <span className="dp-grow" />
         <button type="button" className="ci-btn" onClick={() => setShowSpec(!showSpec)}>{showSpec ? '隐藏 Spec' : '查看 Spec'}</button>
       </div>
-      {showSpec ? <div className="dp-spec ci-root"><PreBlock text={JSON.stringify(sample.view, null, 2)} lines={40} /></div> : null}
+      <p className="dp-desc">{sample.description}</p>
+      <div className="dp-frame">
+        {compiled.view ? <ViewRenderer view={compiled.view} /> : <div className="dp-err">{compiled.error}</div>}
+      </div>
+      {showSpec ? <div className="dp-spec"><PreBlock text={JSON.stringify(sample.view, null, 2)} lines={40} /></div> : null}
     </section>
   )
 }
@@ -123,43 +106,51 @@ const FORMATS: [Format, JsonValue, string][] = [
 ]
 const STATUS_WORDS = ['RUNNING', 'Normal', 'STOPPED', 'PENDING', 'EXPIRED', 'LAUNCH_FAILED', 'Deleting']
 
+function Section({ id, title, tag, desc, children }: { id: string; title: string; tag: string; desc: string; children: React.ReactNode }) {
+  return (
+    <section className="dp-sec" id={id}>
+      <div className="dp-sec-h"><h3>{title}</h3><span className="dp-tag">{tag}</span></div>
+      <p className="dp-desc">{desc}</p>
+      <div className="dp-frame">{children}</div>
+    </section>
+  )
+}
+
 function Foundations() {
   return (
     <>
-      <section className="dp-sec" id="tokens">
-        <h3>基础</h3>
-        <h2>颜色 token</h2>
-        <p className="dp-desc">组件只使用 DSH 的 <code>--dsw-alias-*</code> 变量，跟随 DSH 的亮色和暗色主题。本页内置了与 DSH 0.2 一致的取值，便于独立预览。</p>
-        <div className="dp-frame dp-swatches">
-          {Object.keys(LIGHT).map((k) => (
-            <div key={k} className="dp-sw" title={`--dsw-alias-${k}`}><i style={{ background: `var(--dsw-alias-${k})` }} /><span>{k}</span></div>
+      <Section id="tokens" title="颜色 token" tag="基础" desc="组件采用腾讯云控制台（Tea）的视觉规范：直角、12px 正文、#006eff 主色。颜色都来自 --ci-* 变量，DSH 切换到暗色时整体换成 Tea 暗色取值。">
+        <div className="dp-swatches">
+          {TOKEN_NAMES.filter((k) => !k.endsWith('shadow')).map((k) => (
+            <div key={k} className="dp-sw" title={`--${k}`}><i style={{ background: `var(--${k})` }} /><span>{k.slice(3)}</span></div>
           ))}
         </div>
-      </section>
-      <section className="dp-sec" id="tones">
-        <h3>基础</h3>
-        <h2>语义色 tone 与状态徽标</h2>
-        <p className="dp-desc">stats、alert、timeline 和 Badge 共用五种 tone。format 为 status 时，常见状态词自动映射到 tone。</p>
-        <div className="dp-frame ci-root" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      </Section>
+      <Section id="tones" title="语义色 tone 与状态" tag="基础" desc="stats、alert、timeline 和标签共用五种 tone。format 为 status 时显示为“状态点 + 文字”，常见状态词自动映射到 tone。">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="dp-row">{TONES.map((t) => <Badge key={t} tone={t}>{t}</Badge>)}</div>
-          <div className="dp-row">{STATUS_WORDS.map((w) => <span key={w}>{renderFormat('status', w)}</span>)}</div>
+          <div className="dp-row" style={{ gap: 20 }}>{STATUS_WORDS.map((w) => <span key={w}>{renderFormat('status', w)}</span>)}</div>
+          <div className="dp-row">
+            <button type="button" className="ci-btn primary">主按钮</button>
+            <button type="button" className="ci-btn">次按钮</button>
+            <button type="button" className="ci-btn danger">危险操作</button>
+            <button type="button" className="ci-btn" disabled>禁用</button>
+            <input className="ci-input" placeholder="输入框" aria-label="示例输入框" />
+          </div>
         </div>
-      </section>
-      <section className="dp-sec" id="formats">
-        <h3>基础</h3>
-        <h2>值格式 format</h2>
-        <p className="dp-desc">表格列、kv、stats 和图表坐标轴共用同一套格式化。</p>
-        <div className="dp-frame ci-root">
-          <table className="dp-fmt">
+      </Section>
+      <Section id="formats" title="值格式 format" tag="基础" desc="表格列、kv、stats 和图表坐标轴共用同一套格式化。">
+        <div className="ci-table-wrap">
+          <table className="ci-table">
             <thead><tr><th>format</th><th>输入</th><th>显示</th><th>说明</th></tr></thead>
             <tbody>
               {FORMATS.map(([f, v, note]) => (
-                <tr key={f}><td><code>{f}</code></td><td><code>{JSON.stringify(v)}</code></td><td>{renderFormat(f, v)}</td><td style={{ color: 'var(--dsw-alias-label-tertiary)' }}>{note}</td></tr>
+                <tr key={f}><td><code>{f}</code></td><td><code>{JSON.stringify(v)}</code></td><td>{renderFormat(f, v)}</td><td style={{ color: 'var(--ci-label)' }}>{note}</td></tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </Section>
     </>
   )
 }
@@ -191,18 +182,15 @@ const CALL_META = {
 function ToolCards() {
   const overview = useMemo(() => compileSample(SAMPLES[0]!), [])
   return (
-    <section className="dp-sec" id="toolviews">
-      <h3>工具卡片</h3>
-      <h2>cloud_call / cloud_visualize 在对话中的样子</h2>
-      <p className="dp-desc">cloud_call 卡片只展示请求摘要和有界的结果节选，默认折叠，点击标题展开；cloud_visualize 直接渲染视图。下面依次是调用中、只读成功（多地域，1 个失败）、写操作和失败。</p>
-      <div className="dp-frame dp-cards">
+    <Section id="toolviews" title="cloud_call / cloud_visualize 在对话中的样子" tag="工具卡片" desc="cloud_call 卡片只展示请求摘要和有界的结果节选，默认折叠，点击标题展开；cloud_visualize 直接渲染视图。依次为调用中、只读成功（多地域，1 个失败）、写操作和失败。">
+      <div className="dp-cards">
         <CallToolView {...callProps({ service: 'cvm', action: 'DescribeInstances', regions: ['ap-guangzhou', 'ap-shanghai', 'ap-beijing'] }, null)} />
         <CallToolView {...callProps({ service: 'cvm', action: 'DescribeInstances' }, CALL_META)} />
         <CallToolView {...callProps({ service: 'vpc', action: 'ModifySecurityGroupAttribute' }, { ...CALL_META, service: 'vpc', action: 'ModifySecurityGroupAttribute', version: '2017-03-12', region: 'ap-guangzhou', regions: null, failedRegions: null, risk: 'write', ref: 'r9', durationMs: 214, truncated: false, preview: '{\n  "RequestId": "0b8e5a3c-71f2-4d0e-9c1a-5e2f7d3b6a90"\n}' })} />
         <CallToolView {...callProps({ service: 'vpc', action: 'DeleteSecurityGroup' }, null, { code: 'CLOUD_READONLY', reason: 'account "ro" is read-only; vpc.DeleteSecurityGroup is a write operation and was refused. Do not try to work around this.' })} />
         <VisualizeToolView phase="result" toolName="cloud_visualize" callId="v1" block={{ kind: 'tool-result', callId: 'v1', name: 'cloud_visualize', call: { name: 'cloud_visualize', argsRaw: JSON.stringify({ view: SAMPLES[0]!.view }) }, content: [], isError: false, meta: { kind: 'cloud-view', view: overview } }} />
       </div>
-    </section>
+    </Section>
   )
 }
 
@@ -215,12 +203,16 @@ const NAV: { group: string; items: { id: string; title: string }[] }[] = [
 function useActiveSection(): string {
   const [active, setActive] = useState('tokens')
   useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      const hit = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-      if (hit) setActive(hit.target.id)
-    }, { rootMargin: '-64px 0px -70% 0px' })
-    document.querySelectorAll('.dp-sec[id]').forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
+    const update = () => {
+      let current = ''
+      for (const el of document.querySelectorAll<HTMLElement>('.dp-sec[id]')) {
+        if (el.getBoundingClientRect().top <= 90) current = el.id
+      }
+      setActive(current || 'tokens')
+    }
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    return () => window.removeEventListener('scroll', update)
   }, [])
   return active
 }
@@ -234,33 +226,34 @@ function App() {
   }, [dark])
   const active = useActiveSection()
   return (
-    <>
-      <header className="dp-top">
-        <h1>Cloud View 组件</h1>
-        <span className="dp-sub">@cocofhu/dsh-cloud-infra · {SAMPLES.length} 个示例</span>
-        <span className="dp-grow" />
-        <button type="button" className="ci-btn" onClick={() => setDark(!dark)}>{dark ? '亮色' : '暗色'}</button>
-      </header>
-      <div className="dp-layout">
-        <nav className="dp-nav">
-          {NAV.map((g) => (
-            <div key={g.group}>
-              <h4>{g.group}</h4>
-              {g.items.map((it) => <a key={it.id} href={`#${it.id}`} className={active === it.id ? 'on' : ''}>{it.title}</a>)}
-            </div>
-          ))}
-        </nav>
+    <div className="ci-root dp-app">
+      <nav className="dp-menu">
+        <div className="dp-menu-title">Cloud View</div>
+        {NAV.map((g) => (
+          <div key={g.group}>
+            <h4>{g.group}</h4>
+            {g.items.map((it) => <a key={it.id} href={`#${it.id}`} className={active === it.id ? 'on' : ''}>{it.title}</a>)}
+          </div>
+        ))}
+      </nav>
+      <div className="dp-body">
+        <header className="dp-head">
+          <h2>组件设计页</h2>
+          <span className="dp-sub">@cocofhu/dsh-cloud-infra · {SAMPLES.length} 个示例</span>
+          <span className="dp-grow" />
+          <button type="button" className="ci-btn" onClick={() => setDark(!dark)}>{dark ? '切换亮色' : '切换暗色'}</button>
+        </header>
         <main className="dp-main">
-          <p className="dp-intro">
-            Agent 通过 <code>cloud_visualize</code> 提交 Cloud View Spec，插件校验并绑定 <code>cloud_call</code> 的缓存结果后，由这里的组件渲染。
-            本页的每个示例都经过与工具相同的校验和编译流程，展开“查看 Spec”即可看到 Agent 需要写的 JSON。
-          </p>
+          <div className="ci-alert info dp-intro">
+            Agent 通过 <code>cloud_visualize</code> 提交 Cloud View Spec，插件校验并绑定 <code>cloud_call</code> 的缓存结果后，由这些组件渲染。
+            每个示例都经过与工具相同的校验和编译流程，点“查看 Spec”可以看到 Agent 需要写的 JSON。
+          </div>
           <Foundations />
           {SAMPLES.map((s) => <Sample key={s.id} sample={s} />)}
           <ToolCards />
         </main>
       </div>
-    </>
+    </div>
   )
 }
 

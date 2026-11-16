@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { CompiledChart, CompiledNode, CompiledView, Format, JsonValue, Tone, TreeNode } from '../../view/spec.js'
-import { statusTone } from '../../view/spec.js'
+import { statusTone, TONES } from '../../view/spec.js'
 import { formatValue } from '../format.js'
 import type { EchartsChunk, ModuleRequire } from '../types.js'
 import { chartHeight, chartOption } from './chart-option.js'
@@ -85,12 +85,16 @@ function SectionTitle({ title }: { title?: string }) {
   return title ? <div className="ci-sec-t">{title}</div> : null
 }
 
+function toneOf(value: string): Tone {
+  return (TONES as readonly string[]).includes(value) ? (value as Tone) : statusTone(value)
+}
+
 export function Badge({ tone, children, dot }: { tone: Tone; children: React.ReactNode; dot?: boolean }) {
-  return <span className={`ci-badge ${tone}`}>{dot ? <span className="ci-dot" /> : null}{children}</span>
+  return <span className={`ci-badge ${tone}${dot ? ' st' : ''}`}>{dot ? <span className="ci-dot" /> : null}{children}</span>
 }
 
 export function Value({ value, format }: { value: JsonValue | undefined; format?: Format }) {
-  if (value === null || value === undefined || value === '') return <span style={{ color: 'var(--dsw-alias-label-tertiary)' }}>—</span>
+  if (value === null || value === undefined || value === '') return <span style={{ color: 'var(--ci-weak)' }}>-</span>
   switch (format) {
     case 'status':
       return <Badge tone={statusTone(value)} dot>{String(value)}</Badge>
@@ -174,9 +178,8 @@ registerViewComponent('table', ({ node }) => {
       <SectionTitle title={node.title} />
       {node.rows.length > pageSize ? (
         <div className="ci-tbar">
-          <input placeholder="筛选…" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} aria-label="筛选表格" />
           <span className="ci-grow" />
-          <span>{rows.length === node.total ? `${node.total} 行` : `${rows.length} / ${node.total} 行`}</span>
+          <input placeholder="输入关键字筛选" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} aria-label="筛选表格" />
         </div>
       ) : null}
       <div className="ci-table-wrap">
@@ -185,7 +188,7 @@ registerViewComponent('table', ({ node }) => {
             <tr>
               {node.columns.map((c, i) => (
                 <th key={i} style={c.width ? { width: c.width } : undefined} onClick={() => toggleSort(i)} aria-sort={sort?.col === i ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
-                  {c.title}{sort?.col === i ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+                  {c.title}{sort?.col === i ? <span className="ci-sort">{sort.dir === 1 ? '↑' : '↓'}</span> : null}
                 </th>
               ))}
             </tr>
@@ -200,16 +203,18 @@ registerViewComponent('table', ({ node }) => {
                 })}
               </tr>
             )) : (
-              <tr><td colSpan={node.columns.length} style={{ textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)' }}>无数据</td></tr>
+              <tr><td colSpan={node.columns.length} className="empty">{query ? '没有匹配的数据' : '暂无数据'}</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      {pages > 1 ? (
+      {node.rows.length > pageSize ? (
         <div className="ci-pager">
-          <button type="button" className="ci-btn" disabled={current === 0} onClick={() => setPage(current - 1)}>上一页</button>
-          <span>{current + 1} / {pages}</span>
-          <button type="button" className="ci-btn" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>下一页</button>
+          <span>共 {rows.length} 项{rows.length !== node.rows.length ? `（筛选自 ${node.rows.length} 项）` : ''}</span>
+          <span className="ci-grow" />
+          <span>{current + 1} / {pages} 页</span>
+          <button type="button" className="ci-turn" aria-label="上一页" disabled={current === 0} onClick={() => setPage(current - 1)}>‹</button>
+          <button type="button" className="ci-turn" aria-label="下一页" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>›</button>
         </div>
       ) : null}
       {node.total > node.rows.length ? <div className="ci-note">共 {node.total} 行，展示前 {node.rows.length} 行。</div> : null}
@@ -317,9 +322,9 @@ registerViewComponent('timeline', ({ node }) => (
     <SectionTitle title={node.title} />
     <ul className="ci-tl">
       {node.items.map((it, i) => (
-        <li key={i} className={it.tone ? statusTone(it.tone) : ''}>
+        <li key={i} className={it.tone ? toneOf(it.tone) : ''}>
           <div className="ci-tl-t">{formatValue(it.time, 'datetime')}</div>
-          <div>{it.label}</div>
+          <div className="ci-tl-l">{it.label}</div>
           {it.description ? <div className="ci-tl-d">{it.description}</div> : null}
         </li>
       ))}
