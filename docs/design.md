@@ -274,7 +274,7 @@ riskRules:
 
 - `cloud_call` 默认超时 30 秒，可配置；`exec.signal` 取消时会中止 HTTP 请求。
 - 节流类错误（`RequestLimitExceeded`）对只读请求做最多 2 次指数退避重试；写请求不自动重试，避免重复执行。
-- Cloud View 只接受 JSON，不接受 HTML 或函数；ECharts option 中的外部资源引用（`image://http…`、`url(…)`）会被剥离。
+- Cloud View 只接受 JSON，不接受 HTML、函数或 ECharts option；客户端只渲染 5 种固定组件。
 
 ## 8. Cloud View
 
@@ -426,7 +426,7 @@ const registry = new Map<string, ViewComponent<any>>()
   - `cloud_result` 分页。
   - `type` 别名。
 - 组装：加载整个插件，验证工具注册、审批钩子、只读 guard。
-- Cloud View：校验错误的定位、各图表形态、对象展开成行、尺寸收缩、ECharts option 清洗。
+- Cloud View：校验错误的定位、各图表形态、对象展开成行、时间轴识别、尺寸收缩。
 - Web 接口：`dispatch` 的增删改测、`parseAccount` 校验，以及真实 HTTP 下的方法、内容类型、同源和请求体大小限制。
 - Client：用 `react-dom/server` 渲染所有组件、9 种图表的 option、toolview 和 slot 注册，验证未知 `kind` 退回 JSON。
 
