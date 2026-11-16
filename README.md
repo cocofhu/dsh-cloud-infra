@@ -15,7 +15,7 @@ DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI。目前支持腾�
 | `cloud_result` | 分页、按字段读取已缓存的调用结果 |
 | `cloud_visualize` | 把缓存结果绑定到 Cloud View 组件展示给用户 |
 
-Cloud View 组件：`group` `tabs` `card` `table` `kv` `stats` `chart`（line、area、bar、hbar、pie、donut、scatter、heatmap、gauge）`echarts` `timeline` `tree` `markdown` `alert` `json`。图表和统计卡片会自己做分组、计数和求和，模型只需按 `ref` 绑定原始结果。
+Cloud View 只有 5 种组件，按 `items` 顺序从上到下排列：`stats`（统计卡片）、`table`（表格）、`chart`（line / bar / pie）、`kv`（单个资源详情）、`tabs`（标签页，不能嵌套）。图表和统计卡片会自己做分组、计数和求和，模型只需按 `ref` 绑定原始结果。
 
 ## 配置
 
@@ -76,5 +76,5 @@ dsh plugin --profile web add link:$PWD
 - `lib/host.js`：Host 插件。
 - `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录和 12MB 的按产品分文件。
 - `lib/client.js`：Client 插件，约 39KB。
-- `lib/client.echarts.js`：ECharts chunk，约 870KB，出现图表时才加载。
+- `lib/client.echarts.js`：ECharts chunk（只含折线、柱状、饼图），约 600KB，出现图表时才加载。
 - `lib/design-page/`：组件设计页，自带 React，由插件在 `/cloud-infra/design/` 提供。

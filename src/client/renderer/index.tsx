@@ -1,10 +1,9 @@
 import * as React from 'react'
-import type { CompiledChart, CompiledNode, CompiledView, Format, JsonValue, Tone, TreeNode } from '../../view/spec.js'
-import { statusTone, TONES } from '../../view/spec.js'
+import type { CompiledChart, CompiledNode, CompiledView, Format, JsonValue, Tone } from '../../view/spec.js'
+import { statusTone } from '../../view/spec.js'
 import { formatValue } from '../format.js'
 import type { EchartsChunk, ModuleRequire } from '../types.js'
-import { chartHeight, chartOption } from './chart-option.js'
-import { Markdown } from './markdown.js'
+import { CHART_HEIGHT, chartOption } from './chart-option.js'
 
 const { useEffect, useMemo, useRef, useState } = React
 
@@ -85,10 +84,6 @@ function SectionTitle({ title }: { title?: string }) {
   return title ? <div className="ci-sec-t">{title}</div> : null
 }
 
-function toneOf(value: string): Tone {
-  return (TONES as readonly string[]).includes(value) ? (value as Tone) : statusTone(value)
-}
-
 export function Badge({ tone, children, dot }: { tone: Tone; children: React.ReactNode; dot?: boolean }) {
   return <span className={`ci-badge ${tone}${dot ? ' st' : ''}`}>{dot ? <span className="ci-dot" /> : null}{children}</span>
 }
@@ -98,14 +93,6 @@ export function Value({ value, format }: { value: JsonValue | undefined; format?
   switch (format) {
     case 'status':
       return <Badge tone={statusTone(value)} dot>{String(value)}</Badge>
-    case 'tag':
-      return <>{(Array.isArray(value) ? value : [value]).map((v, i) => <Badge key={i} tone="neutral">{formatValue(v)}</Badge>)}</>
-    case 'code':
-      return <code>{formatValue(value)}</code>
-    case 'link': {
-      const href = String(value)
-      return /^https?:\/\//.test(href) ? <a href={href} target="_blank" rel="noreferrer noopener">{href}</a> : <>{href}</>
-    }
     default:
       if (typeof value === 'boolean') return <Badge tone={value ? 'success' : 'neutral'}>{String(value)}</Badge>
       return <>{formatValue(value, format)}</>
@@ -114,12 +101,7 @@ export function Value({ value, format }: { value: JsonValue | undefined; format?
 
 // ---- layout ----
 
-registerViewComponent('group', ({ node, render: r }) => {
-  if (node.columns && node.columns > 1) {
-    return <div className="ci-grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${Math.floor(720 / node.columns)}px), 1fr))` }}>{node.children.map((c, i) => r(c, i))}</div>
-  }
-  return <div className={node.direction === 'row' ? 'ci-row' : 'ci-col'}>{node.children.map((c, i) => r(c, i))}</div>
-})
+registerViewComponent('group', ({ node, render: r }) => <div className="ci-col">{node.children.map((c, i) => r(c, i))}</div>)
 
 registerViewComponent('tabs', ({ node, render: r }) => {
   const [active, setActive] = useState(0)
@@ -135,18 +117,6 @@ registerViewComponent('tabs', ({ node, render: r }) => {
     </div>
   )
 })
-
-registerViewComponent('card', ({ node, render: r }) => (
-  <div className="ci-card">
-    {node.title || node.subtitle ? (
-      <div className="ci-card-h">
-        {node.title ? <div className="ci-card-t">{node.title}</div> : null}
-        {node.subtitle ? <div className="ci-card-s">{node.subtitle}</div> : null}
-      </div>
-    ) : null}
-    {r(node.body)}
-  </div>
-))
 
 // ---- data ----
 
@@ -187,7 +157,7 @@ registerViewComponent('table', ({ node }) => {
           <thead>
             <tr>
               {node.columns.map((c, i) => (
-                <th key={i} style={c.width ? { width: c.width } : undefined} onClick={() => toggleSort(i)} aria-sort={sort?.col === i ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
+                <th key={i} onClick={() => toggleSort(i)} aria-sort={sort?.col === i ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}>
                   {c.title}{sort?.col === i ? <span className="ci-sort">{sort.dir === 1 ? '↑' : '↓'}</span> : null}
                 </th>
               ))}
@@ -225,7 +195,7 @@ registerViewComponent('table', ({ node }) => {
 registerViewComponent('kv', ({ node }) => (
   <div>
     <SectionTitle title={node.title} />
-    <div className="ci-kv" style={{ gridTemplateColumns: `repeat(${node.columns ?? 2}, minmax(0, 1fr))` }}>
+    <div className="ci-kv">
       {node.items.map((it, i) => (
         <div key={i} className="ci-kv-i">
           <span className="ci-kv-l">{it.label}</span>
@@ -242,7 +212,6 @@ registerViewComponent('stats', ({ node }) => (
       <div key={i} className={`ci-stat ${it.tone ?? ''}`}>
         <div className="ci-stat-l">{it.label}</div>
         <div className="ci-stat-v">{formatValue(it.value, it.format)}{it.unit ? <small>{it.unit}</small> : null}</div>
-        {it.hint ? <div className="ci-stat-h">{it.hint}</div> : null}
       </div>
     ))}
   </div>
@@ -307,74 +276,9 @@ registerViewComponent('chart', ({ node }) => {
   const option = useMemo(() => chartOption(node as CompiledChart), [node])
   return (
     <div>
-      <EChart option={option} height={chartHeight(node as CompiledChart)} title={node.title} />
+      <EChart option={option} height={CHART_HEIGHT} title={node.title} />
       {node.truncated ? <div className="ci-note">数据点过多，只展示最近的部分。</div> : null}
     </div>
   )
 })
 
-registerViewComponent('echarts', ({ node }) => <EChart option={node.option as Record<string, unknown>} height={node.height ?? 320} title={node.title} />)
-
-// ---- other ----
-
-registerViewComponent('timeline', ({ node }) => (
-  <div>
-    <SectionTitle title={node.title} />
-    <ul className="ci-tl">
-      {node.items.map((it, i) => (
-        <li key={i} className={it.tone ? toneOf(it.tone) : ''}>
-          <div className="ci-tl-t">{formatValue(it.time, 'datetime')}</div>
-          <div className="ci-tl-l">{it.label}</div>
-          {it.description ? <div className="ci-tl-d">{it.description}</div> : null}
-        </li>
-      ))}
-    </ul>
-    {node.total > node.items.length ? <div className="ci-note">共 {node.total} 条，展示前 {node.items.length} 条。</div> : null}
-  </div>
-))
-
-function TreeItems({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
-  return (
-    <ul className={`ci-tree${depth === 0 ? ' root' : ''}`}>
-      {nodes.map((n, i) => <TreeItem key={i} node={n} depth={depth} />)}
-    </ul>
-  )
-}
-
-function TreeItem({ node, depth }: { node: TreeNode; depth: number }) {
-  const [open, setOpen] = useState(depth < 2)
-  const hasKids = !!node.children?.length
-  return (
-    <li>
-      <div className="ci-tree-n">
-        {hasKids ? <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? '▾' : '▸'}</button> : <span style={{ width: 16 }} />}
-        <span>{node.label}</span>
-        {node.value ? <span className="ci-tree-v">{node.value}</span> : null}
-      </div>
-      {hasKids && open ? <TreeItems nodes={node.children!} depth={depth + 1} /> : null}
-    </li>
-  )
-}
-
-registerViewComponent('tree', ({ node }) => (
-  <div>
-    <SectionTitle title={node.title} />
-    <TreeItems nodes={node.nodes} depth={0} />
-  </div>
-))
-
-registerViewComponent('markdown', ({ node }) => <Markdown text={node.text} />)
-
-registerViewComponent('alert', ({ node }) => (
-  <div className={`ci-alert ${node.tone}`} role={node.tone === 'danger' || node.tone === 'warning' ? 'alert' : undefined}>
-    {node.title ? <div className="ci-alert-t">{node.title}</div> : null}
-    <Markdown text={node.text} />
-  </div>
-))
-
-registerViewComponent('json', ({ node }) => (
-  <div>
-    <SectionTitle title={node.title} />
-    <JsonBlock value={node.data} />
-  </div>
-))

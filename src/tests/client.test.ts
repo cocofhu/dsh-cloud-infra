@@ -10,7 +10,6 @@ import type { CompiledChart, CompiledView, JsonValue, ViewRoot } from '../view/s
 interface ClientUnderTest {
   ViewRenderer: (props: { view: CompiledView }) => React.ReactNode
   chartOption: (node: CompiledChart) => Record<string, unknown>
-  chartHeight: (node: object) => number
   formatValue: (v: JsonValue, format?: string) => string
   CallToolView: (props: Record<string, unknown>) => React.ReactNode
   VisualizeToolView: (props: Record<string, unknown>) => React.ReactNode
@@ -28,9 +27,11 @@ const rows: JsonValue = [
   { id: 'ins-2', state: 'STOPPED', cpu: 4, zone: 'gz-6', time: '2026-01-02T00:00:00Z' },
 ]
 
-function view(body: object): CompiledView {
-  return compileView({ v: 1, title: '测试', body } as ViewRoot, { resolve: (b) => getPath(b.ref === 'r1' ? rows : null, b.path ?? '') }).view
+function view(node: object): CompiledView {
+  return compileView({ v: 1, title: '测试', items: [node] } as ViewRoot, { resolve: (b) => getPath(b.ref === 'r1' ? rows : null, b.path ?? '') }).view
 }
+
+const first = (v: CompiledView) => (v.body as { children: unknown[] }).children[0]
 
 test('format helpers', () => {
   assert.equal(client.formatValue(1536, 'bytes'), '1.5 KB')
@@ -42,22 +43,15 @@ test('format helpers', () => {
 
 test('every component kind renders server-side', () => {
   const v = view({ kind: 'tabs', tabs: [
-    { label: '概览', body: { kind: 'group', direction: 'row', children: [
+    { label: '概览', items: [
       { kind: 'stats', items: [{ label: '实例', value: 2, tone: 'success' }, { label: 'CPU', value: { ref: 'r1', path: '[*].cpu', agg: 'sum' }, unit: '核' }] },
       { kind: 'kv', data: { ref: 'r1', path: '[0]' } },
-    ] } },
-    { label: '表格', body: { kind: 'card', title: '实例', body: { kind: 'table', data: { ref: 'r1' } } } },
-    { label: '其它', body: { kind: 'group', children: [
-      { kind: 'timeline', data: { ref: 'r1' }, time: 'time', label: 'id', tone: 'state' },
-      { kind: 'tree', data: [{ label: 'vpc-1', children: [{ label: 'subnet-1' }] }], label: 'label' },
-      { kind: 'markdown', text: '# 标题\n- **粗体** `code`\n[link](javascript:alert(1))' },
-      { kind: 'alert', tone: 'warning', text: '注意' },
-      { kind: 'json', data: { a: 1 } },
-    ] } },
+      { kind: 'chart', chart: 'pie', data: { ref: 'r1' }, x: 'state' },
+    ] },
+    { label: '表格', items: [{ kind: 'table', data: { ref: 'r1' } }] },
   ] })
   const out = html(React.createElement(client.ViewRenderer, { view: v }))
-  for (const s of ['测试', '概览', 'ci-stat', '核']) assert.ok(out.includes(s), s)
-  assert.doesNotMatch(out, /javascript:/)
+  for (const s of ['测试', '概览', '表格', 'ci-stat', '核', 'ci-kv', 'ci-chart']) assert.ok(out.includes(s), s)
 })
 
 test('table renders rows, status badges and inferred headers', () => {
@@ -68,7 +62,7 @@ test('table renders rows, status badges and inferred headers', () => {
 
 test('table pages without inner scrolling and shows status as dot + text', () => {
   const many = Array.from({ length: 23 }, (_, i) => ({ id: `ins-${i}`, state: i % 2 ? 'RUNNING' : 'STOPPED' }))
-  const v = compileView({ v: 1, body: { kind: 'table', data: many, columns: [{ key: 'id' }, { key: 'state', format: 'status' }] } } as ViewRoot, { resolve: () => null }).view
+  const v = compileView({ v: 1, items: [{ kind: 'table', data: many, columns: [{ key: 'id' }, { key: 'state', format: 'status' }] }] }, { resolve: () => null }).view
   const out = html(React.createElement(client.ViewRenderer, { view: v }))
   assert.equal((out.match(/<tr>/g) ?? []).length, 1 + 10)
   assert.match(out, /共 23 项/)
@@ -76,16 +70,10 @@ test('table pages without inner scrolling and shows status as dot + text', () =>
   assert.match(out, /class="ci-badge success st"><span class="ci-dot"><\/span>RUNNING/)
 })
 
-test('timeline accepts tone names as well as status words', () => {
-  const v = view({ kind: 'timeline', data: [{ t: 1, l: 'a', s: 'danger' }, { t: 2, l: 'b', s: 'RUNNING' }], time: 't', label: 'l', tone: 's' })
-  const out = html(React.createElement(client.ViewRenderer, { view: v }))
-  assert.match(out, /<li class="danger">/)
-  assert.match(out, /<li class="success">/)
-})
-
-test('long JSON folds instead of scrolling', () => {
-  const v = view({ kind: 'json', data: { list: Array.from({ length: 40 }, (_, i) => i) } })
-  const out = html(React.createElement(client.ViewRenderer, { view: v }))
+test('unknown nodes from older views fall back to folded JSON', () => {
+  const legacy = { v: 1, body: { kind: 'group', children: [{ kind: 'timeline', list: Array.from({ length: 40 }, (_, i) => i) }] } } as unknown as CompiledView
+  const out = html(React.createElement(client.ViewRenderer, { view: legacy }))
+  assert.match(out, /timeline/)
   assert.match(out, /展开全部（\d+ 行）/)
   assert.ok(!out.includes(' 39\n'), 'folded lines are not rendered')
 })
@@ -96,24 +84,16 @@ test('unknown or broken nodes fall back to JSON instead of crashing', () => {
 })
 
 test('chart options for every chart type', () => {
-  const types = ['line', 'area', 'bar', 'hbar', 'pie', 'donut', 'scatter', 'heatmap', 'gauge'] as const
-  for (const chart of types) {
-    const body = chart === 'scatter'
-      ? { kind: 'chart', chart, data: { ref: 'r1' }, x: 'cpu', y: 'cpu' }
-      : chart === 'heatmap'
-        ? { kind: 'chart', chart, data: { ref: 'r1' }, x: 'zone', y: 'state' }
-        : chart === 'gauge'
-          ? { kind: 'chart', chart, data: 42, format: 'percent' }
-          : { kind: 'chart', chart, data: { ref: 'r1' }, x: chart === 'pie' || chart === 'donut' ? 'state' : 'zone', y: chart === 'pie' || chart === 'donut' ? undefined : 'cpu' }
-    const node = view(body).body as CompiledChart
+  for (const chart of ['line', 'bar', 'pie'] as const) {
+    const node = first(view({ kind: 'chart', chart, data: { ref: 'r1' }, x: chart === 'pie' ? 'state' : 'zone', ...(chart === 'pie' ? {} : { y: 'cpu' }) })) as CompiledChart
     const opt = client.chartOption(node)
     const series = opt.series as { type: string }[]
-    assert.ok(Array.isArray(series) && series.length > 0, chart)
-    const expected = { line: 'line', area: 'line', bar: 'bar', hbar: 'bar', pie: 'pie', donut: 'pie', scatter: 'scatter', heatmap: 'heatmap', gauge: 'gauge' }[chart]
-    assert.equal(series[0]!.type, expected, chart)
+    assert.equal(series[0]!.type, chart)
     assert.doesNotThrow(() => JSON.stringify(opt), chart)
-    assert.ok(client.chartHeight(node) >= 120)
   }
+  const time = first(view({ kind: 'chart', chart: 'line', data: { ref: 'r1' }, x: 'time', y: 'cpu' })) as CompiledChart
+  assert.equal(time.xFormat, 'datetime')
+  assert.match(String((client.chartOption(time).xAxis as { data: string[] }).data[0]), /^2026-01-0[12] /)
 })
 
 test('tool views render call and view results; apply registers slots', () => {
@@ -124,7 +104,7 @@ test('tool views render call and view results; apply registers slots', () => {
   for (const s of ['cvm.DescribeInstances', 'ap-guangzhou', 'req-1', 'TotalCount', '只读']) assert.ok(call.includes(s), s)
   const collapsed = html(React.createElement(client.CallToolView, { phase: 'result', toolName: 'cloud_call', callId: 'c1', block: result(callMeta) }))
   assert.ok(!collapsed.includes('req-1'))
-  const vis = html(React.createElement(client.VisualizeToolView, { phase: 'result', toolName: 'cloud_visualize', callId: 'c2', block: result({ kind: 'cloud-view', view: view({ kind: 'markdown', text: 'hello view' }) }) }))
+  const vis = html(React.createElement(client.VisualizeToolView, { phase: 'result', toolName: 'cloud_visualize', callId: 'c2', block: result({ kind: 'cloud-view', view: view({ kind: 'kv', data: { note: 'hello view' } }) }) }))
   assert.match(vis, /hello view/)
   const err = html(React.createElement(client.VisualizeToolView, { phase: 'result', toolName: 'cloud_visualize', callId: 'c3', block: result(undefined, { isError: true, content: [{ type: 'text', text: 'boom' }] }) }))
   assert.match(err, /失败/)
@@ -145,7 +125,7 @@ test('tool views render call and view results; apply registers slots', () => {
 })
 
 test('visualization results become Turn-level chat cards outside the tool group', () => {
-  const v = view({ kind: 'markdown', text: 'card body' })
+  const v = view({ kind: 'kv', data: { note: 'card body' } })
   const event = (meta: unknown, extra: object = {}) => ({ type: 'tool/result', seq: 42, surfaceOp: 'append', data: { message: { source: { callId: 'call-9' } }, meta, ...extra } })
   const match = client.cardDefinition.match['tool/result']
   assert.deepEqual(match(event({ kind: 'cloud-view', view: v })), { id: 'call-9', role: 'start' })

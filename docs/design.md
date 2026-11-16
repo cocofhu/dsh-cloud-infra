@@ -283,57 +283,49 @@ riskRules:
 ### 8.1 Spec 协议
 
 ```ts
-interface ViewRoot { v: 1; title?: string; body: ViewNode }
+interface ViewRoot { v: 1; title?: string; items: ViewNode[] }   // 组件从上到下排列
 
-type ViewNode =
-  // 布局
-  | { kind: 'group'; direction?: 'row' | 'column'; columns?: number; children: ViewNode[] }
-  | { kind: 'tabs'; tabs: { label: string; body: ViewNode }[] }
-  | { kind: 'card'; title?: string; subtitle?: string; body: ViewNode }
-  // 数据
-  | { kind: 'table'; data: DataSource; columns?: Column[]; rowKey?: string; pageSize?: number }
-  | { kind: 'kv'; data: DataSource; items?: { label: string; path: string; format?: Format }[] }
-  | { kind: 'stats'; items: { label: string; value: number | string | (Binding & { agg?: Aggregate }); unit?: string; format?: Format; tone?: Tone; hint?: string }[] }
-  | { kind: 'chart'; chart: 'line' | 'area' | 'bar' | 'hbar' | 'pie' | 'donut' | 'scatter' | 'heatmap' | 'gauge'; data: DataSource; x?: string; y?: string | string[]; series?: string; value?: string; agg?: Aggregate; stack?: boolean; unit?: string; format?: Format; xFormat?: Format; max?: number }
-  | { kind: 'echarts'; option: JsonObject; data?: Record<string, DataSource> }   // 高级出口，见 8.3
-  | { kind: 'timeline'; data: DataSource; time: string; title: string; description?: string; tone?: string }
-  | { kind: 'tree'; data: DataSource; label: string; children: string }
-  // 文本
-  | { kind: 'markdown'; text: string }
-  | { kind: 'alert'; tone: Tone; text: string }
-  | { kind: 'json'; data: DataSource }
+type ViewNode = ContentNode | { kind: 'tabs'; tabs: { label: string; items: ContentNode[] }[] }   // tabs 不能嵌套
+
+type ContentNode =
+  | { kind: 'stats'; items: { label: string; value: number | string | (Binding & { agg?: Aggregate }); unit?: string; format?: Format; tone?: Tone }[] }
+  | { kind: 'table'; title?: string; data: DataSource; columns?: Column[] }
+  | { kind: 'chart'; chart: 'line' | 'bar' | 'pie'; title?: string; data: DataSource; x?: string; y?: string | string[]; series?: string; unit?: string; format?: Format }
+  | { kind: 'kv'; title?: string; data: DataSource; items?: { path: string; label?: string; format?: Format }[] }
 
 type DataSource = JsonValue[] | JsonObject | Binding         // 内联或绑定
 type Binding = { ref: string; path?: string }                // 指向 ResultStore
-type Column = { key: string; title?: string; format?: Format; width?: number }
-type Format = 'text' | 'number' | 'percent' | 'bytes' | 'currency' | 'datetime' | 'duration' | 'status' | 'tag' | 'code' | 'link'
+type Column = { key: string; title?: string; format?: Format }
+type Format = 'number' | 'percent' | 'bytes' | 'datetime' | 'status'
 type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
-type Aggregate = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'first'
+type Aggregate = 'count' | 'sum'
 ```
 
+- 组件刻意保持很少：早期版本有 14 种组件（布局、时间线、树、Markdown、原生 ECharts 等）和 9 种图表，工具描述很长，模型容易写出校验不过的 Spec。现在只保留覆盖云资源查看场景的 5 种，多个组件直接从上到下排列，不需要布局组件。
 - 路径语法（`key`、`path`、`x`、`y` 共用）：`a.b`、`a[0]`、`a[*].b`。`table` 未给 `columns` 时，从前 50 行推断标量列。
 - `status` 格式按值的常见词（`RUNNING`、`STOPPED`、`FAILED`、`Normal` 等）上色。这是通用词表，不按产品区分。`percent` 表示数值已经是 0–100 的百分数（与云监控指标一致）。
 - `table` 推断列时跳过所有样本行都为空（`null`、空字符串、空数组）的字段。
 - `chart` 的数据形态：
-  - 行模式：每行一个对象，按 `x` 分组；省略 `y` 时计数，`series` 把行拆成多条序列。
+  - 行模式：每行一个对象，按 `x` 分组；写 `y` 时求和，省略 `y` 时计数，`series` 把行拆成多条序列。
   - 行内序列：每行自带 x、y 数组，例如云监控 `DataPoints` 的 `Timestamps` / `Values`，每行一条序列。
   - 列模式：数据是一个包含平行数组的对象，`x`、`y` 指向其中的数组。
+  - 时间轴自动识别：`x` 路径名像时间（`Time`、`Date`、`Timestamps` 等）且取值都是时间戳或日期字符串时，坐标轴按时间格式显示。
 - 需要行的地方如果拿到“对象的对象”，例如多地域结果 `{ "<region>": data }`，就展开成每个条目一行 `{ key, ...value }`。这样一次调用就能按地域对比。
-- 模型常把 `kind` 写成 `type`。`cloud_visualize` 只在视图节点（`body`、`children`、`tabs`）上接受这个别名，数据和 ECharts option 内的 `type` 保持不变。
+- 模型常把 `kind` 写成 `type`。`cloud_visualize` 只在组件（根 `items` 和标签页的 `items`）上接受这个别名，数据里的 `type` 保持不变。
 
 ### 8.2 编译（Host）
 
 `cloud_visualize` 执行时：
 
-1. 校验 Spec：未知 `kind`、缺字段、超深嵌套（> 6 层）返回 `ToolArgsError`，错误信息直接告诉模型哪里不对。
+1. 校验 Spec：未知 `kind`、缺字段、嵌套 tabs 返回 `ToolArgsError`，错误信息直接告诉模型哪里不对。
 2. 解析每个 `Binding`，从 ResultStore 取值并物化。
 3. 施加上限：单个数据源 2000 行，整个 View 序列化后 1MB。超过 1MB 时把行上限减半重新编译，最低 10 行，并在 View 中附带 `truncated` 标记。
 4. 编译结果放在工具的 `value` 中，再由 `presentationMeta` 投影出 `{ kind: 'cloud-view', view }`。`value` 不写入会话日志，`presentationMeta` 会写入，所以回放会话时不需要结果缓存。返回给模型的只是一份简短的摘要，例如每个表格的行数和列名、每个图表的序列数。
 
 ### 8.3 ECharts
 
-- 用 `echarts/core` 按需注册 line、bar、pie、scatter、heatmap、gauge、graph、tree、treemap、sankey、radar、funnel、boxplot、candlestick 和常用组件，打成单独的懒加载 chunk `client.echarts.js`（约 870KB）。只有页面上出现图表时，才通过 `require.async('./client.echarts.js')` 加载。构建脚本会检查主入口不含 ECharts。
-- `chart` 是简化形式，覆盖大多数场景；`echarts` 直接透传 option，`data` 中的绑定会作为 `dataset.source` 注入。透传的 option 会先经过 §7.3 的清洗。
+- 用 `echarts/core` 只注册 line、bar、pie 和 grid、legend、tooltip、dataZoom，打成单独的懒加载 chunk `client.echarts.js`（约 600KB）。只有页面上出现图表时，才通过 `require.async('./client.echarts.js')` 加载。构建脚本会检查主入口不含 ECharts。
+- 不再提供透传 ECharts option 的出口，模型只能通过 `chart` 的几个字段描述图表。
 - 主题使用腾讯云控制台图表配色，坐标轴、文字等颜色从图表容器上的 `--ci-*` token 读取，切换深浅色时重建。token 的透明度写成 `0.9` 而不是 `.9`，因为 ECharts 的颜色解析不认后者。
 
 ### 8.4 Client 渲染器
@@ -343,11 +335,11 @@ type ViewComponent<K extends ViewNode['kind']> = (props: { node: Extract<ViewNod
 const registry = new Map<string, ViewComponent<any>>()
 ```
 
-- 未注册的 `kind` 或渲染异常会退回 `json` 视图，不会让整张卡片失败。
+- 编译结果用内部的 `group`（纵向排列）承载根 `items` 和每个标签页。未注册的 `kind`（例如旧会话里已移除的组件）或渲染异常会退回折叠的 JSON，不会让整张卡片失败。
 - 组件自带实现，只依赖共享模块表里的 `react`，样式统一使用 `ci-` 前缀。这样就不依赖 DSH 内部组件的 API 稳定性。
 - 视觉采用腾讯云控制台的 Tea 规范：直角、12px 正文、`#006eff` 主色、表格和标签页样式、“状态点 + 文字”的状态显示、MetricsBoard 风格的统计卡片、“共 N 项 … 1 / N 页 ‹ ›”分页。颜色集中在 `styles.ts` 的 `--ci-*` token 中，亮色和暗色取值来自 Tea 的 `tea.css` 和 `tea-dark.css`，DSH 切换到暗色（`body[data-ds-dark-theme]`）时一起切换。
 - 没有直接打包 `tea-component`：它的 npm 许可证是 `UNLICENSED`，没有授予再分发权利，而 DSH 插件必须把客户端代码打包进 `lib/client.js` 一起发布。它的 CSS 约 300KB，还带有约 100 条全局选择器，需要额外隔离。如果日后获得授权，可以把它作为和 ECharts 一样的懒加载 chunk 接入。
-- 表格支持筛选、排序和分页，每页行数由 `pageSize` 指定。Markdown 只支持安全子集，链接只允许 http(s)。
+- 表格内置筛选、排序和分页，每页 10 行。
 
 ### 8.5 扩展方式
 
@@ -419,7 +411,7 @@ const registry = new Map<string, ViewComponent<any>>()
 - 索引：`scripts/build-api-index.ts` 输出到 `lib/api-index/`。
 - `package.json` 声明 `dsh.bundle.patch`、`dsh.client`（`platform: 'web'`、`inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-slots', '@deepseek-ai/dsh-client-ui-plugin-manager']`），以及 `exports["./client"]`。
 - 组件设计页：`src/design/page.tsx` 单独打包到 `lib/design-page/`（ESM，自带 React，ECharts 拆成懒加载 chunk）。浏览器构建里把 `@deepseek-ai/dsh-tools` 换成只导出 `ToolArgsError` 的小模块，这样示例能直接走真实的 `validateView` 和 `compileView`。Host 用前缀路由 `/cloud-infra/design` 提供静态文件，`pnpm design` 也可以脱离 DSH 单独运行。
-- 产物大小：`client.js` 约 40KB，`client.echarts.js` 约 870KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
+- 产物大小：`client.js` 约 35KB，`client.echarts.js` 约 600KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
 - 安装：`dsh plugin --profile web add @cocofhu/dsh-cloud-infra`。
 
 ## 13. 测试策略
@@ -450,7 +442,7 @@ const registry = new Map<string, ViewComponent<any>>()
 | M1 | 骨架；账号（store + tccli）；TencentProvider；风险分级 + 审批钩子 + 只读 guard；`cloud_accounts`、`cloud_call`、`cloud_result`；单元测试 | 完成 |
 | M2 | API 索引生成；`cloud_api_search`、`cloud_api_describe` | 完成 |
 | M3 | Cloud View Spec、校验与编译；`cloud_visualize`；Client 渲染器（非图表组件）；`cloud_call` 卡片 | 完成 |
-| M4 | ECharts 懒加载 chunk、`chart` / `echarts` 组件、主题适配 | 完成 |
+| M4 | ECharts 懒加载 chunk、`chart` 组件、主题适配 | 完成 |
 | M5 | 设置卡片与 Host 接口；多地域并发（审批详情插槽不采用，见 §7.2） | 完成 |
 | M6 | 第二个厂商（阿里云），检验抽象是否成立 | 未开始，需要阿里云账号 |
 

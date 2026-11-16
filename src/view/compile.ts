@@ -2,8 +2,8 @@ import { ToolArgsError } from '@deepseek-ai/dsh-tools'
 import { getPath } from '../core/json-path.js'
 import { isBinding } from './validate.js'
 import type {
-  Aggregate, Binding, ChartNode, Column, CompiledChart, CompiledColumn, CompiledNode, CompiledView, DataSource,
-  Format, JsonObject, JsonValue, StatItem, TreeNode, ViewNode, ViewRoot,
+  Aggregate, Binding, ChartNode, Column, CompiledChart, CompiledColumn, CompiledNode, CompiledView, ContentNode, DataSource,
+  Format, JsonObject, JsonValue, StatItem, ViewNode, ViewRoot,
 } from './spec.js'
 
 export interface CompileOptions {
@@ -22,7 +22,7 @@ export interface CompileResult {
 const DEFAULT_MAX_ROWS = 2000
 const DEFAULT_MAX_BYTES = 1024 * 1024
 const MAX_INFERRED_COLUMNS = 12
-const MAX_TREE_NODES = 2000
+const PAGE_SIZE = 10
 const MAX_CELL_CHARS = 2000
 
 class Compiler {
@@ -31,14 +31,14 @@ class Compiler {
 
   constructor(private readonly resolve: CompileOptions['resolve'], private readonly maxRows: number) {}
 
+  stack(items: ViewNode[], at: string): CompiledNode {
+    return { kind: 'group', children: items.map((n, i) => this.node(n, `${at}[${i}]`)) }
+  }
+
   node(n: ViewNode, at: string): CompiledNode {
     switch (n.kind) {
-      case 'group':
-        return { kind: 'group', direction: n.direction ?? 'column', ...(n.columns ? { columns: n.columns } : {}), children: n.children.map((c, i) => this.node(c, `${at}.children[${i}]`)) }
       case 'tabs':
-        return { kind: 'tabs', tabs: n.tabs.map((t, i) => ({ label: t.label, body: this.node(t.body, `${at}.tabs[${i}].body`) })) }
-      case 'card':
-        return { kind: 'card', ...opt('title', n.title), ...opt('subtitle', n.subtitle), body: this.node(n.body, `${at}.body`) }
+        return { kind: 'tabs', tabs: n.tabs.map((t, i) => ({ label: t.label, body: this.stack(t.items, `${at}.tabs[${i}].items`) })) }
       case 'table':
         return this.table(n, at)
       case 'kv':
@@ -47,53 +47,6 @@ class Compiler {
         return { kind: 'stats', items: n.items.map((it, i) => this.stat(it, `${at}.items[${i}]`)) }
       case 'chart':
         return this.chart(n, at)
-      case 'echarts':
-        return this.echarts(n, at)
-      case 'timeline': {
-        const rows = this.rows(n.data, `${at}.data`)
-        const kept = this.cap(rows)
-        this.summary.push(`timeline${n.title ? ` "${n.title}"` : ''}: ${rows.length} events`)
-        return {
-          kind: 'timeline', ...opt('title', n.title), total: rows.length,
-          items: kept.map((r) => ({
-            time: scalar(getPath(r, n.time)),
-            label: text(getPath(r, n.label)),
-            ...(n.description ? { description: text(getPath(r, n.description)) } : {}),
-            ...(n.tone ? { tone: text(getPath(r, n.tone)) } : {}),
-          })),
-        }
-      }
-      case 'tree': {
-        const roots = this.data(n.data, `${at}.data`)
-        const list = Array.isArray(roots) ? roots : [roots ?? null]
-        let count = 0
-        const walk = (items: JsonValue[], depth: number): TreeNode[] => {
-          const out: TreeNode[] = []
-          for (const item of items) {
-            if (count >= MAX_TREE_NODES) { this.truncated = true; break }
-            count++
-            const kids = getPath(item, n.children ?? 'children')
-            out.push({
-              label: text(getPath(item, n.label)),
-              ...(n.value ? { value: text(getPath(item, n.value)) } : {}),
-              ...(Array.isArray(kids) && kids.length && depth < 8 ? { children: walk(kids, depth + 1) } : {}),
-            })
-          }
-          return out
-        }
-        const nodes = walk(list, 0)
-        this.summary.push(`tree${n.title ? ` "${n.title}"` : ''}: ${count} nodes`)
-        return { kind: 'tree', ...opt('title', n.title), nodes, total: count }
-      }
-      case 'markdown':
-        return { kind: 'markdown', text: n.text }
-      case 'alert':
-        return { kind: 'alert', tone: n.tone ?? 'info', ...opt('title', n.title), text: n.text }
-      case 'json': {
-        const value = this.data(n.data, `${at}.data`) ?? null
-        this.summary.push(`json${n.title ? ` "${n.title}"` : ''}`)
-        return { kind: 'json', ...opt('title', n.title), data: value }
-      }
     }
   }
 
@@ -122,18 +75,18 @@ class Compiler {
     return rows.slice(0, this.maxRows)
   }
 
-  private table(n: Extract<ViewNode, { kind: 'table' }>, at: string): CompiledNode {
+  private table(n: Extract<ContentNode, { kind: 'table' }>, at: string): CompiledNode {
     const rows = this.rows(n.data, `${at}.data`)
     const columns: CompiledColumn[] = (n.columns ?? inferColumns(rows)).map((c: Column) => ({
-      key: c.key, title: c.title ?? c.key, ...(c.format ? { format: c.format } : {}), ...(c.width ? { width: c.width } : {}),
+      key: c.key, title: c.title ?? c.key, ...(c.format ? { format: c.format } : {}),
     }))
     const kept = this.cap(rows)
     const cells = kept.map((r) => columns.map((c) => cell(getPath(r, c.key))))
     this.summary.push(`table${n.title ? ` "${n.title}"` : ''}: ${rows.length} rows × ${columns.length} columns (${columns.map((c) => c.key).join(', ')})`)
-    return { kind: 'table', ...opt('title', n.title), columns, rows: cells, total: rows.length, pageSize: n.pageSize ?? 10 }
+    return { kind: 'table', ...opt('title', n.title), columns, rows: cells, total: rows.length, pageSize: PAGE_SIZE }
   }
 
-  private kv(n: Extract<ViewNode, { kind: 'kv' }>, at: string): CompiledNode {
+  private kv(n: Extract<ContentNode, { kind: 'kv' }>, at: string): CompiledNode {
     let value = this.data(n.data, `${at}.data`)
     if (Array.isArray(value) && value.length === 1) value = value[0]!
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -143,7 +96,7 @@ class Compiler {
       ?? Object.keys(value).filter((k) => isScalar(value[k])).slice(0, 40).map((k) => ({ path: k, ...(guessFormat(k) ? { format: guessFormat(k) } : {}) }))
     this.summary.push(`kv${n.title ? ` "${n.title}"` : ''}: ${items.length} fields`)
     return {
-      kind: 'kv', ...opt('title', n.title), ...(n.columns ? { columns: n.columns } : {}),
+      kind: 'kv', ...opt('title', n.title),
       items: items.map((it) => ({ label: it.label ?? it.path, value: cell(getPath(value, it.path)), ...(it.format ? { format: it.format } : {}) })),
     }
   }
@@ -157,24 +110,14 @@ class Compiler {
     } else {
       value = it.value
     }
-    return { label: it.label, value, ...opt('unit', it.unit), ...opt('format', it.format), ...opt('tone', it.tone), ...opt('hint', it.hint) }
+    return { label: it.label, value, ...opt('unit', it.unit), ...opt('format', it.format), ...opt('tone', it.tone) }
   }
 
   private chart(n: ChartNode, at: string): CompiledChart {
-    const base = {
-      kind: 'chart' as const, chart: n.chart, ...opt('title', n.title), ...(n.stack ? { stack: true } : {}),
-      ...opt('unit', n.unit), ...opt('format', n.format), ...opt('xFormat', n.xFormat), ...(n.height ? { height: n.height } : {}),
-    }
+    const base = { kind: 'chart' as const, chart: n.chart, ...opt('title', n.title), ...opt('unit', n.unit), ...opt('format', n.format) }
     const raw = this.data(n.data, `${at}.data`)
     const ys = n.y === undefined ? [] : Array.isArray(n.y) ? n.y : [n.y]
     const label = `chart ${n.chart}${n.title ? ` "${n.title}"` : ''}`
-
-    if (n.chart === 'gauge') {
-      const v = ys[0] ? getPath(raw ?? null, ys[0]) : raw
-      const num = toNumber(Array.isArray(v) ? v[0] : v) ?? 0
-      this.summary.push(`${label}: ${num}`)
-      return { ...base, series: [], gauge: { value: num, max: n.max ?? (n.format === 'percent' ? 100 : Math.max(100, num)) } }
-    }
 
     // Column mode: data is an object holding parallel arrays.
     if (raw && typeof raw === 'object' && !Array.isArray(raw) && !mapRows(raw)) {
@@ -185,12 +128,12 @@ class Compiler {
         if (!Array.isArray(values)) throw new ToolArgsError([`${at}.y: "${y}" is not an array in the data object`])
         return { name: y, data: values.map(toNumber) }
       })
-      return this.finishCategorical(base, xs, series, label)
+      return this.finishCategorical(base, xs, series, label, n.x)
     }
 
     const rows = this.rows(n.data, `${at}.data`)
 
-    if (n.chart === 'pie' || n.chart === 'donut') {
+    if (n.chart === 'pie') {
       const groups = new Map<string, JsonValue[]>()
       for (const r of rows) {
         const name = text(n.x ? getPath(r, n.x) : r)
@@ -198,36 +141,10 @@ class Compiler {
         bucket.push(ys[0] ? getPath(r, ys[0]) ?? null : r)
         groups.set(name, bucket)
       }
-      const agg = n.agg ?? (ys[0] ? 'sum' : 'count')
+      const agg: Aggregate = ys[0] ? 'sum' : 'count'
       const slices = [...groups].map(([name, vals]) => ({ name, value: toNumber(aggregate(vals, agg)) ?? 0 }))
       this.summary.push(`${label}: ${slices.length} slices`)
       return { ...base, series: [], slices: slices.slice(0, 200) }
-    }
-
-    if (n.chart === 'scatter') {
-      const groups = new Map<string, [number, number][]>()
-      for (const r of this.cap(rows)) {
-        const x = toNumber(getPath(r, n.x!)); const y = toNumber(getPath(r, ys[0]!))
-        if (x === null || y === null) continue
-        const name = n.series ? text(getPath(r, n.series)) : ys[0]!
-        groups.set(name, [...(groups.get(name) ?? []), [x, y]])
-      }
-      this.summary.push(`${label}: ${rows.length} points`)
-      return { ...base, series: [], points: [...groups].map(([name, data]) => ({ name, data })) }
-    }
-
-    if (n.chart === 'heatmap') {
-      const xCats: JsonValue[] = []; const yCats: JsonValue[] = []
-      const cells: [number, number, number][] = []
-      for (const r of this.cap(rows)) {
-        const xv = scalar(getPath(r, n.x!)); const yv = scalar(getPath(r, ys[0]!))
-        const v = toNumber(n.value ? getPath(r, n.value) : 1)
-        let xi = xCats.indexOf(xv); if (xi < 0) xi = xCats.push(xv) - 1
-        let yi = yCats.indexOf(yv); if (yi < 0) yi = yCats.push(yv) - 1
-        if (v !== null) cells.push([xi, yi, v])
-      }
-      this.summary.push(`${label}: ${xCats.length}×${yCats.length} cells`)
-      return { ...base, series: [], categories: xCats, yCategories: yCats, cells }
     }
 
     // Row-series mode: each row carries its own x and y arrays (e.g. monitor DataPoints).
@@ -243,7 +160,7 @@ class Compiler {
       })
       const categories = sortCategories([...xSet.values()])
       const series = perRow.map(({ name, map }) => ({ name, data: categories.map((c) => map.get(JSON.stringify(c)) ?? null) }))
-      return this.finishCategorical(base, categories, series, label)
+      return this.finishCategorical(base, categories, series, label, n.x)
     }
 
     // Row mode: one category per distinct x; one series per y path or per `series` group.
@@ -255,7 +172,7 @@ class Compiler {
       const k = JSON.stringify(xKey(r))
       if (!catIndex.has(k)) { catIndex.set(k, categories.length); categories.push(xKey(r)) }
     }
-    const agg = n.agg ?? (ys.length ? 'sum' : 'count')
+    const agg: Aggregate = ys.length ? 'sum' : 'count'
     const buckets = new Map<string, JsonValue[][]>()
     const push = (name: string, idx: number, v: JsonValue) => {
       let b = buckets.get(name)
@@ -273,10 +190,10 @@ class Compiler {
       }
     }
     const series = [...buckets].map(([name, b]) => ({ name, data: b.map((vals) => (vals.length ? toNumber(aggregate(vals, agg)) : null)) }))
-    return this.finishCategorical(base, categories, series, label)
+    return this.finishCategorical(base, categories, series, label, n.x)
   }
 
-  private finishCategorical(base: Omit<CompiledChart, 'series'>, categories: JsonValue[], series: { name: string; data: (number | null)[] }[], label: string): CompiledChart {
+  private finishCategorical(base: Omit<CompiledChart, 'series'>, categories: JsonValue[], series: { name: string; data: (number | null)[] }[], label: string, x?: string): CompiledChart {
     let cats = categories
     let ser = series.slice(0, 50)
     if (cats.length > this.maxRows) {
@@ -285,21 +202,8 @@ class Compiler {
       ser = ser.map((s) => ({ ...s, data: s.data.slice(-this.maxRows) }))
     }
     this.summary.push(`${label}: ${ser.length} series × ${cats.length} points (${ser.map((s) => s.name).slice(0, 6).join(', ')})`)
-    return { ...base, categories: cats, series: ser, ...(categories.length > cats.length ? { truncated: categories.length - cats.length } : {}) }
-  }
-
-  private echarts(n: Extract<ViewNode, { kind: 'echarts' }>, at: string): CompiledNode {
-    const option = sanitizeOption(n.option) as JsonObject
-    if (n.data) {
-      const datasets: JsonValue[] = Array.isArray(option.dataset) ? [...option.dataset] : option.dataset ? [option.dataset] : []
-      for (const [id, source] of Object.entries(n.data)) {
-        const value = this.data(source, `${at}.data.${id}`)
-        datasets.push({ id, source: Array.isArray(value) ? this.cap(value) : value ?? [] })
-      }
-      option.dataset = datasets
-    }
-    this.summary.push(`echarts${n.title ? ` "${n.title}"` : ''}`)
-    return { kind: 'echarts', ...opt('title', n.title), option, ...(n.height ? { height: n.height } : {}) }
+    const time = x !== undefined && TIME_KEY.test(x) && cats.length > 0 && cats.every(looksLikeTime)
+    return { ...base, ...(time ? { xFormat: 'datetime' as const } : {}), categories: cats, series: ser, ...(categories.length > cats.length ? { truncated: categories.length - cats.length } : {}) }
   }
 }
 
@@ -348,15 +252,8 @@ export function toNumber(v: JsonValue | undefined): number | null {
 
 export function aggregate(values: JsonValue[], agg: Aggregate): JsonValue {
   if (agg === 'count') return values.length
-  if (agg === 'first') return values[0] ?? null
   const nums = values.map(toNumber).filter((n): n is number => n !== null)
-  if (!nums.length) return null
-  switch (agg) {
-    case 'sum': return round(nums.reduce((a, b) => a + b, 0))
-    case 'avg': return round(nums.reduce((a, b) => a + b, 0) / nums.length)
-    case 'min': return Math.min(...nums)
-    case 'max': return Math.max(...nums)
-  }
+  return nums.length ? round(nums.reduce((a, b) => a + b, 0)) : null
 }
 
 function round(n: number): number {
@@ -382,28 +279,17 @@ export function inferColumns(rows: JsonValue[]): Column[] {
   return keys.map((key) => ({ key, ...(guessFormat(key) ? { format: guessFormat(key) } : {}) }))
 }
 
+const TIME_KEY = /(time|date|timestamps?|At)$/i
+
+function looksLikeTime(v: JsonValue): boolean {
+  if (typeof v === 'number') return v >= 1e9
+  return typeof v === 'string' && (/^\d{4}-\d{2}-\d{2}/.test(v) || /^\d{10,13}$/.test(v))
+}
+
 function guessFormat(key: string): Format | undefined {
   if (/(Status|State)$/.test(key)) return 'status'
   if (/(Time|Date|At)$/.test(key)) return 'datetime'
   return undefined
-}
-
-const UNSAFE_STRING = /^\s*image:\/\/|url\s*\(|javascript:/i
-
-/** Drop external resource references and non-JSON content from a passthrough ECharts option. */
-export function sanitizeOption(value: JsonValue, depth = 0): JsonValue {
-  if (depth > 20) return null
-  if (typeof value === 'string') return UNSAFE_STRING.test(value) ? '' : value
-  if (Array.isArray(value)) return value.map((v) => sanitizeOption(v, depth + 1))
-  if (value && typeof value === 'object') {
-    const out: JsonObject = {}
-    for (const [k, v] of Object.entries(value)) {
-      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue
-      out[k] = sanitizeOption(v, depth + 1)
-    }
-    return out
-  }
-  return value
 }
 
 /**
@@ -415,7 +301,7 @@ export function compileView(root: ViewRoot, options: CompileOptions): CompileRes
   let maxRows = options.maxRows ?? DEFAULT_MAX_ROWS
   for (;;) {
     const compiler = new Compiler(options.resolve, maxRows)
-    const body = compiler.node(root.body, 'view.body')
+    const body = compiler.stack(root.items, 'view.items')
     const view: CompiledView = { v: 1, ...(root.title ? { title: root.title } : {}), body }
     if (compiler.truncated) view.truncated = true
     const size = JSON.stringify(view).length

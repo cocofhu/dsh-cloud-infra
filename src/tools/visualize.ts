@@ -18,18 +18,24 @@ interface VisualizeValue {
   view: CompiledView
 }
 
-const NODE_KEYS = ['body', 'children', 'tabs'] as const
+/** Models often write "type" for "kind"; accept it on components (root items and tab items only). */
+export function normalizeKinds(view: unknown): unknown {
+  if (!view || typeof view !== 'object' || Array.isArray(view)) return view
+  const root = view as Record<string, unknown>
+  return Array.isArray(root.items) ? { ...root, items: root.items.map(normalizeNode) } : root
+}
 
-/** Models often write "type" for "kind"; accept it on view nodes (not inside data or echarts options). */
-export function normalizeKinds(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(normalizeKinds)
-  if (!node || typeof node !== 'object') return node
+function normalizeNode(node: unknown): unknown {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return node
   const out: Record<string, unknown> = { ...(node as Record<string, unknown>) }
   if (out.kind === undefined && typeof out.type === 'string') {
     out.kind = out.type
     delete out.type
   }
-  for (const key of NODE_KEYS) if (out[key] !== undefined) out[key] = normalizeKinds(out[key])
+  if (out.kind === 'tabs' && Array.isArray(out.tabs)) {
+    out.tabs = out.tabs.map((t) => (t && typeof t === 'object' && Array.isArray((t as { items?: unknown }).items)
+      ? { ...(t as object), items: ((t as { items: unknown[] }).items).map(normalizeNode) } : t))
+  }
   return out
 }
 
@@ -37,12 +43,12 @@ export function visualizeTool(rt: Runtime) {
   return defineTool({
     name: VISUALIZE_TOOL,
     description:
-      'Show data to the user as tables, charts, stats and other components (Cloud View). Use it when a visual summary helps — '
+      'Show data to the user as stats, tables, charts and details (Cloud View). Use it when a visual summary helps — '
       + 'lists of resources, comparisons, distributions, trends — not for simple answers. Prefer binding data to cloud_call '
       + 'results by ref instead of copying values. You only get a short confirmation back; the user sees the rendered view.\n'
       + VIEW_CATALOG,
     parameters: {
-      view: { type: 'object', required: true, additionalProperties: true, description: 'Cloud View spec: { "title"?: string, "body": Node }.' },
+      view: { type: 'object', required: true, additionalProperties: true, description: 'Cloud View spec: { "title"?: string, "items": Component[] }.' },
     },
     output: {
       schema: { type: 'object', additionalProperties: true },

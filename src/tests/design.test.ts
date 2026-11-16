@@ -15,7 +15,6 @@ function walk(node: CompiledNode, visit: (n: CompiledNode) => void): void {
   visit(node)
   if (node.kind === 'group') node.children.forEach((c) => walk(c, visit))
   if (node.kind === 'tabs') node.tabs.forEach((t) => walk(t.body, visit))
-  if (node.kind === 'card') walk(node.body, visit)
 }
 
 test('every design sample validates and compiles', () => {
@@ -39,8 +38,7 @@ test('design samples produce non-empty data', () => {
   for (const sample of SAMPLES) {
     walk(compileSample(sample).body, (n) => {
       if (n.kind === 'table') assert.ok(n.rows.length > 0, `${sample.id} table`)
-      if (n.kind === 'chart') assert.ok(n.series.length || n.slices?.length || n.points?.length || n.cells?.length || n.gauge, `${sample.id} ${n.chart}`)
-      if (n.kind === 'tree') assert.ok(n.nodes.length > 0, `${sample.id} tree`)
+      if (n.kind === 'chart') assert.ok(n.series.length || n.slices?.length, `${sample.id} ${n.chart}`)
     })
   }
 })

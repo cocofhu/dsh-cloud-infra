@@ -12,42 +12,35 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 export type JsonObject = { [key: string]: JsonValue }
 
 export const VIEW_VERSION = 1
-export const MAX_VIEW_DEPTH = 6
 
 export const TONES = ['neutral', 'info', 'success', 'warning', 'danger'] as const
 export type Tone = (typeof TONES)[number]
 
-export const FORMATS = ['text', 'number', 'percent', 'bytes', 'currency', 'datetime', 'duration', 'status', 'tag', 'code', 'link'] as const
+export const FORMATS = ['number', 'percent', 'bytes', 'datetime', 'status'] as const
 export type Format = (typeof FORMATS)[number]
 
-export const CHART_TYPES = ['line', 'area', 'bar', 'hbar', 'pie', 'donut', 'scatter', 'heatmap', 'gauge'] as const
+export const CHART_TYPES = ['line', 'bar', 'pie'] as const
 export type ChartType = (typeof CHART_TYPES)[number]
 
-export const AGGREGATES = ['count', 'sum', 'avg', 'min', 'max', 'first'] as const
+export const AGGREGATES = ['count', 'sum'] as const
 export type Aggregate = (typeof AGGREGATES)[number]
 
 /** Points into a cached `cloud_call` result. */
 export interface Binding { ref: string; path?: string }
 export type DataSource = JsonValue[] | JsonObject | Binding
 
-export interface Column { key: string; title?: string; format?: Format; width?: number }
+export interface Column { key: string; title?: string; format?: Format }
 
 // ---- authored spec (what the model writes) ----
 
-export type ViewNode =
-  | { kind: 'group'; direction?: 'row' | 'column'; columns?: number; children: ViewNode[] }
-  | { kind: 'tabs'; tabs: { label: string; body: ViewNode }[] }
-  | { kind: 'card'; title?: string; subtitle?: string; body: ViewNode }
-  | { kind: 'table'; title?: string; data: DataSource; columns?: Column[]; pageSize?: number }
-  | { kind: 'kv'; title?: string; data: DataSource; items?: { label?: string; path: string; format?: Format }[]; columns?: number }
+/** The four content components; a view stacks them top to bottom, optionally inside tabs. */
+export type ContentNode =
   | { kind: 'stats'; items: StatItem[] }
+  | { kind: 'table'; title?: string; data: DataSource; columns?: Column[] }
   | ChartNode
-  | { kind: 'echarts'; title?: string; option: JsonObject; data?: Record<string, DataSource>; height?: number }
-  | { kind: 'timeline'; title?: string; data: DataSource; time: string; label: string; description?: string; tone?: string }
-  | { kind: 'tree'; title?: string; data: DataSource; label: string; children?: string; value?: string }
-  | { kind: 'markdown'; text: string }
-  | { kind: 'alert'; tone?: Tone; title?: string; text: string }
-  | { kind: 'json'; title?: string; data: DataSource }
+  | { kind: 'kv'; title?: string; data: DataSource; items?: { path: string; label?: string; format?: Format }[] }
+
+export type ViewNode = ContentNode | { kind: 'tabs'; tabs: { label: string; items: ContentNode[] }[] }
 
 export interface StatItem {
   label: string
@@ -55,7 +48,6 @@ export interface StatItem {
   unit?: string
   format?: Format
   tone?: Tone
-  hint?: string
 }
 
 export interface ChartNode {
@@ -65,69 +57,47 @@ export interface ChartNode {
   data: DataSource
   /** Category / time path. Row mode: relative to each row. Column mode: an array path. */
   x?: string
-  /** Value path(s). Omitted = count rows per x. */
+  /** Value path(s), summed per x. Omitted = count rows per x. */
   y?: string | string[]
-  /** Group rows into one series per value of this path (row mode), or name each row-series. */
+  /** Split rows into one series per value of this path (row mode), or name each row-series. */
   series?: string
-  /** Heatmap cell value path. */
-  value?: string
-  agg?: Aggregate
-  stack?: boolean
   unit?: string
   format?: Format
-  xFormat?: Format
-  max?: number
-  height?: number
 }
 
-export interface ViewRoot { v: 1; title?: string; body: ViewNode }
+export interface ViewRoot { v: 1; title?: string; items: ViewNode[] }
 
 // ---- compiled view (what the client renders) ----
 
-export interface CompiledColumn { key: string; title: string; format?: Format; width?: number }
+export interface CompiledColumn { key: string; title: string; format?: Format }
 
 export interface CompiledSeries { name: string; data: (number | null)[] }
 
 export type CompiledNode =
-  | { kind: 'group'; direction: 'row' | 'column'; columns?: number; children: CompiledNode[] }
+  /** Internal vertical stack: the view root and each tab body. */
+  | { kind: 'group'; children: CompiledNode[] }
   | { kind: 'tabs'; tabs: { label: string; body: CompiledNode }[] }
-  | { kind: 'card'; title?: string; subtitle?: string; body: CompiledNode }
   | { kind: 'table'; title?: string; columns: CompiledColumn[]; rows: JsonValue[][]; total: number; pageSize: number }
-  | { kind: 'kv'; title?: string; items: { label: string; value: JsonValue; format?: Format }[]; columns?: number }
-  | { kind: 'stats'; items: { label: string; value: JsonValue; unit?: string; format?: Format; tone?: Tone; hint?: string }[] }
+  | { kind: 'kv'; title?: string; items: { label: string; value: JsonValue; format?: Format }[] }
+  | { kind: 'stats'; items: { label: string; value: JsonValue; unit?: string; format?: Format; tone?: Tone }[] }
   | CompiledChart
-  | { kind: 'echarts'; title?: string; option: JsonObject; height?: number }
-  | { kind: 'timeline'; title?: string; items: { time: JsonValue; label: string; description?: string; tone?: string }[]; total: number }
-  | { kind: 'tree'; title?: string; nodes: TreeNode[]; total: number }
-  | { kind: 'markdown'; text: string }
-  | { kind: 'alert'; tone: Tone; title?: string; text: string }
-  | { kind: 'json'; title?: string; data: JsonValue }
 
 export interface CompiledChart {
   kind: 'chart'
   chart: ChartType
   title?: string
-  /** Category axis for line/area/bar/hbar/heatmap. */
+  /** Category axis for line/bar. */
   categories?: JsonValue[]
   series: CompiledSeries[]
-  /** pie/donut slices. */
+  /** pie slices. */
   slices?: { name: string; value: number }[]
-  /** scatter points per series. */
-  points?: { name: string; data: [number, number][] }[]
-  /** heatmap: y categories and [xIndex, yIndex, value] cells. */
-  yCategories?: JsonValue[]
-  cells?: [number, number, number][]
-  gauge?: { value: number; max: number }
-  stack?: boolean
   unit?: string
   format?: Format
+  /** Inferred from the x path or values; formats the category axis. */
   xFormat?: Format
-  height?: number
   /** Rows dropped by the size limits. */
   truncated?: number
 }
-
-export interface TreeNode { label: string; value?: string; children?: TreeNode[] }
 
 export interface CompiledView {
   v: 1
@@ -137,7 +107,8 @@ export interface CompiledView {
   truncated?: boolean
 }
 
-export const NODE_KINDS = ['group', 'tabs', 'card', 'table', 'kv', 'stats', 'chart', 'echarts', 'timeline', 'tree', 'markdown', 'alert', 'json'] as const
+export const CONTENT_KINDS = ['stats', 'table', 'chart', 'kv'] as const
+export const NODE_KINDS = [...CONTENT_KINDS, 'tabs'] as const
 export type NodeKind = (typeof NODE_KINDS)[number]
 
 /** Generic status words → tone; shared so host summaries and client badges agree. */

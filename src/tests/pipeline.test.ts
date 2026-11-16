@@ -37,11 +37,11 @@ test('search, describe, call and visualize work end to end on the tool runtime',
 
     const view = await host.run('cloud_visualize', { view: {
       title: '实例',
-      body: { kind: 'group', children: [
+      items: [
         { kind: 'stats', items: [{ label: '总数', value: { ref: 'r1', path: 'TotalCount' } }] },
         { kind: 'table', data: { ref: 'r1', path: 'InstanceSet' } },
         { kind: 'chart', chart: 'pie', data: { ref: 'r1', path: 'InstanceSet' }, x: 'InstanceState' },
-      ] },
+      ],
     } })
     assert.equal(view.isError, false, text(view))
     assert.match(text(view), /Rendered "实例" for the user:\n- table: 2 rows × 3 columns \(InstanceId, InstanceState, Placement.Zone\)/)
@@ -49,11 +49,13 @@ test('search, describe, call and visualize work end to end on the tool runtime',
     assert.equal(meta.kind, 'cloud-view')
     assert.deepEqual(meta.view.body.children.map((c) => c.kind), ['stats', 'table', 'chart'])
 
-    const aliased = await host.run('cloud_visualize', { view: { body: { type: 'card', body: { type: 'json', data: { type: 'kept' } } } } })
+    const aliased = await host.run('cloud_visualize', { view: { items: [{ type: 'tabs', tabs: [{ label: 'a', items: [{ type: 'kv', data: { type: 'kept' } }] }] }] } })
     assert.equal(aliased.isError, false, text(aliased))
-    assert.deepEqual((aliased.meta as { view: { body: unknown } }).view.body, { kind: 'card', body: { kind: 'json', data: { type: 'kept' } } })
+    assert.deepEqual((aliased.meta as { view: { body: unknown } }).view.body, { kind: 'group', children: [
+      { kind: 'tabs', tabs: [{ label: 'a', body: { kind: 'group', children: [{ kind: 'kv', items: [{ label: 'type', value: 'kept' }] }] } }] },
+    ] })
 
-    const bad = await host.run('cloud_visualize', { view: { body: { kind: 'table', data: { ref: 'r9' } } } })
+    const bad = await host.run('cloud_visualize', { view: { items: [{ kind: 'table', data: { ref: 'r9' } }] } })
     assert.equal(bad.isError, true)
     assert.match(text(bad), /r9/)
   } finally {
@@ -79,7 +81,7 @@ test('regions fan out reads, keep partial failures and refuse writes', async () 
     assert.equal(value.data['ap-tokyo']?.error?.code, 'UnsupportedRegion')
     assert.match(text(res), /regions=3 \(failed: ap-tokyo\)/)
 
-    const chart = await host.run('cloud_visualize', { view: { body: { kind: 'chart', chart: 'bar', data: { ref: 'r1' }, x: 'key', y: 'TotalCount' } } })
+    const chart = await host.run('cloud_visualize', { view: { items: [{ kind: 'chart', chart: 'bar', data: { ref: 'r1' }, x: 'key', y: 'TotalCount' }] } })
     assert.equal(chart.isError, false, text(chart))
     assert.match(text(chart), /1 series × 3 points/)
 

@@ -1,20 +1,11 @@
-/** Lazy chunk (client.echarts.js): ECharts with the chart types and components Cloud View uses. */
+/** Lazy chunk (client.echarts.js): ECharts with only the line, bar and pie charts Cloud View uses. */
 import * as echarts from 'echarts/core'
-import { BarChart, GaugeChart, GraphChart, HeatmapChart, LineChart, PieChart, RadarChart, SankeyChart, ScatterChart, TreeChart, TreemapChart, FunnelChart, BoxplotChart, CandlestickChart } from 'echarts/charts'
-import {
-  DataZoomComponent, DatasetComponent, GridComponent, LegendComponent, MarkAreaComponent, MarkLineComponent, MarkPointComponent,
-  PolarComponent, RadarComponent, TitleComponent, ToolboxComponent, TooltipComponent, TransformComponent, VisualMapComponent,
-} from 'echarts/components'
-import { LabelLayout, UniversalTransition } from 'echarts/features'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
+import { DataZoomComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { LabelLayout } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 
-echarts.use([
-  BarChart, GaugeChart, GraphChart, HeatmapChart, LineChart, PieChart, RadarChart, SankeyChart, ScatterChart, TreeChart, TreemapChart,
-  FunnelChart, BoxplotChart, CandlestickChart,
-  DataZoomComponent, DatasetComponent, GridComponent, LegendComponent, MarkAreaComponent, MarkLineComponent, MarkPointComponent,
-  PolarComponent, RadarComponent, TitleComponent, ToolboxComponent, TooltipComponent, TransformComponent, VisualMapComponent,
-  LabelLayout, UniversalTransition, CanvasRenderer,
-])
+echarts.use([BarChart, LineChart, PieChart, DataZoomComponent, GridComponent, LegendComponent, TooltipComponent, LabelLayout, CanvasRenderer])
 
 /** Tencent Cloud console chart palette. */
 const PALETTE = ['#006eff', '#29cc85', '#ffbb00', '#ff584c', '#9741d9', '#1fc0cc', '#7dd936', '#ff9c19', '#e63984', '#655ce6']
@@ -42,9 +33,7 @@ function theme(el: HTMLElement, dark: boolean): Record<string, unknown> {
     valueAxis: { axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: label }, splitLine: { lineStyle: { color: line, type: 'dashed' } } },
     timeAxis: { axisLine: { lineStyle: { color: axis } }, axisLabel: { color: label }, splitLine: { lineStyle: { color: line } } },
     title: { textStyle: { color: text } },
-    gauge: { axisLine: { lineStyle: { color: [[1, line]] } }, splitLine: { lineStyle: { color: axis } }, axisTick: { lineStyle: { color: axis } }, axisLabel: { color: label }, detail: { color: text } },
     pie: { label: { color: text } },
-    radar: { axisName: { color: label }, axisLine: { lineStyle: { color: line } }, splitLine: { lineStyle: { color: line } }, splitArea: { areaStyle: { color: ['transparent'] } } },
     bar: { barMaxWidth: 28 },
     line: { symbolSize: 4, lineStyle: { width: 2 } },
   }

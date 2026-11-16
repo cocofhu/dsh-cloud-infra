@@ -38,7 +38,7 @@ body[data-ds-dark-theme]{background:#11131c}
 .dp-head .dp-sub{color:var(--ci-label)}
 .dp-head .dp-grow{flex:1}
 .dp-main{padding:20px;max-width:1200px}
-.dp-intro{margin:0 0 20px}
+.dp-intro{margin:0 0 20px;padding:12px 20px;background:var(--ci-info-bg);color:var(--ci-info-fg);line-height:1.7}
 .dp-intro code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .dp-sec{margin:0 0 20px;background:var(--ci-bg);box-shadow:var(--ci-shadow)}
 .dp-sec-h{display:flex;align-items:baseline;gap:12px;padding:16px 20px 12px;border-bottom:1px solid var(--ci-border)}
@@ -91,18 +91,13 @@ function Sample({ sample }: { sample: DesignSample }) {
 }
 
 const TONES: Tone[] = ['neutral', 'info', 'success', 'warning', 'danger']
-const FORMATS: [Format, JsonValue, string][] = [
-  ['text', 'prod-web-01', '原样输出'],
+const FORMATS: [Format | undefined, JsonValue, string][] = [
+  [undefined, 'prod-web-01', '不写 format：原样输出，数字加千分位'],
   ['number', 1234567.891, '千分位，最多两位小数'],
   ['percent', 87.5, '数值已是 0–100'],
   ['bytes', 5368709120, '自动换算单位'],
-  ['currency', 13150.5, '金额'],
   ['datetime', '2026-11-16T03:21:00Z', 'ISO 字符串或秒/毫秒时间戳'],
-  ['duration', 93784, '秒'],
-  ['status', 'RUNNING', '按常见状态词上色'],
-  ['tag', ['prod', 'web'], '数组逐个显示为标签'],
-  ['code', 'ins-8h3k2m1q', '等宽字体'],
-  ['link', 'https://cloud.tencent.com', '只允许 http(s)'],
+  ['status', 'RUNNING', '按常见状态词显示“状态点 + 文字”'],
 ]
 const STATUS_WORDS = ['RUNNING', 'Normal', 'STOPPED', 'PENDING', 'EXPIRED', 'LAUNCH_FAILED', 'Deleting']
 
@@ -126,7 +121,7 @@ function Foundations() {
           ))}
         </div>
       </Section>
-      <Section id="tones" title="语义色 tone 与状态" tag="基础" desc="stats、alert、timeline 和标签共用五种 tone。format 为 status 时显示为“状态点 + 文字”，常见状态词自动映射到 tone。">
+      <Section id="tones" title="语义色 tone 与状态" tag="基础" desc="stats 的 tone 和标签共用五种语义色。format 为 status 时显示为“状态点 + 文字”，常见状态词自动映射到语义色。">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="dp-row">{TONES.map((t) => <Badge key={t} tone={t}>{t}</Badge>)}</div>
           <div className="dp-row" style={{ gap: 20 }}>{STATUS_WORDS.map((w) => <span key={w}>{renderFormat('status', w)}</span>)}</div>
@@ -139,13 +134,13 @@ function Foundations() {
           </div>
         </div>
       </Section>
-      <Section id="formats" title="值格式 format" tag="基础" desc="表格列、kv、stats 和图表坐标轴共用同一套格式化。">
+      <Section id="formats" title="值格式 format" tag="基础" desc="表格列、kv、stats 和图表数值共用这 5 种格式。">
         <div className="ci-table-wrap">
           <table className="ci-table">
             <thead><tr><th>format</th><th>输入</th><th>显示</th><th>说明</th></tr></thead>
             <tbody>
               {FORMATS.map(([f, v, note]) => (
-                <tr key={f}><td><code>{f}</code></td><td><code>{JSON.stringify(v)}</code></td><td>{renderFormat(f, v)}</td><td style={{ color: 'var(--ci-label)' }}>{note}</td></tr>
+                <tr key={f ?? 'none'}><td><code>{f ?? '—'}</code></td><td><code>{JSON.stringify(v)}</code></td><td>{renderFormat(f, v)}</td><td style={{ color: 'var(--ci-label)' }}>{note}</td></tr>
               ))}
             </tbody>
           </table>
@@ -155,7 +150,7 @@ function Foundations() {
   )
 }
 
-function renderFormat(format: Format, value: JsonValue): React.ReactNode {
+function renderFormat(format: Format | undefined, value: JsonValue): React.ReactNode {
   return <Value value={value} format={format} />
 }
 
@@ -182,7 +177,7 @@ const CALL_META = {
 function ToolCards() {
   const overview = useMemo(() => compileSample(SAMPLES[0]!), [])
   return (
-    <Section id="toolviews" title="cloud_call / cloud_visualize 在对话中的样子" tag="工具卡片" desc="cloud_call 卡片只展示请求摘要和有界的结果节选，默认折叠，点击标题展开；cloud_visualize 直接渲染视图。依次为调用中、只读成功（多地域，1 个失败）、写操作和失败。">
+    <Section id="toolviews" title="cloud_call / cloud_visualize 在对话中的样子" tag="工具卡片" desc="cloud_call 卡片只展示请求摘要和有界的结果节选，默认折叠，点击标题展开；cloud_visualize 的视图作为独立卡片显示在对话中（不在工具分组里），这里直接渲染。依次为调用中、只读成功（多地域，1 个失败）、写操作和失败。">
       <div className="dp-cards">
         <CallToolView {...callProps({ service: 'cvm', action: 'DescribeInstances', regions: ['ap-guangzhou', 'ap-shanghai', 'ap-beijing'] }, null)} />
         <CallToolView {...callProps({ service: 'cvm', action: 'DescribeInstances' }, CALL_META)} />
@@ -196,7 +191,7 @@ function ToolCards() {
 
 const NAV: { group: string; items: { id: string; title: string }[] }[] = [
   { group: '基础', items: [{ id: 'tokens', title: '颜色 token' }, { id: 'tones', title: '语义色与状态' }, { id: 'formats', title: '值格式' }] },
-  ...['示例', '数据', '图表', '其他', '布局'].map((group) => ({ group, items: SAMPLES.filter((s) => s.group === group).map((s) => ({ id: s.id, title: s.title })) })),
+  ...['示例', '组件'].map((group) => ({ group, items: SAMPLES.filter((s) => s.group === group).map((s) => ({ id: s.id, title: s.title })) })),
   { group: '工具卡片', items: [{ id: 'toolviews', title: 'cloud_call / cloud_visualize' }] },
 ]
 
@@ -244,10 +239,10 @@ function App() {
           <button type="button" className="ci-btn" onClick={() => setDark(!dark)}>{dark ? '切换亮色' : '切换暗色'}</button>
         </header>
         <main className="dp-main">
-          <div className="ci-alert info dp-intro">
-            Agent 通过 <code>cloud_visualize</code> 提交 Cloud View Spec，插件校验并绑定 <code>cloud_call</code> 的缓存结果后，由这些组件渲染。
-            每个示例都经过与工具相同的校验和编译流程，点“查看 Spec”可以看到 Agent 需要写的 JSON。
-          </div>
+          <p className="dp-intro">
+            Agent 通过 <code>cloud_visualize</code> 提交 Cloud View Spec：<code>{'{ title?, items: [...] }'}</code>，组件只有 stats、table、chart（line / bar / pie）、kv、tabs 五种，按顺序从上到下排列。
+            插件校验并绑定 <code>cloud_call</code> 的缓存结果后渲染。每个示例都经过与工具相同的校验和编译流程，点“查看 Spec”可以看到 Agent 需要写的 JSON。
+          </p>
           <Foundations />
           {SAMPLES.map((s) => <Sample key={s.id} sample={s} />)}
           <ToolCards />
