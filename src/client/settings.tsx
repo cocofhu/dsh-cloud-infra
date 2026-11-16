@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Badge, Spinner } from './renderer/index.js'
-import { Button, Card, Checkbox, Form, Input, Select, Table, Text } from './tea.js'
+import { Button, Card, Checkbox, Form, Input, Radio, Table, Text } from './tea.js'
 
 const { useCallback, useEffect, useState } = React
 
@@ -167,9 +167,10 @@ export function SettingsCard() {
                     <Input value={draft.defaultRegion} placeholder="ap-guangzhou" onChange={(v: string) => set({ defaultRegion: v })} />
                   </Form.Item>
                   <Form.Item label="凭据来源">
-                    <Select appearance="button" matchButtonWidth size="l" value={draft.source}
-                      options={[{ value: 'store', text: 'SecretId / SecretKey（DSH 凭据存储）' }, { value: 'tccli', text: 'tccli 配置（~/.tccli）' }]}
-                      onChange={(v: string) => set({ source: v as Draft['source'] })} />
+                    <Radio.Group value={draft.source} onChange={(v: string) => set({ source: v as Draft['source'] })}>
+                      <Radio name="store">SecretId / SecretKey（DSH 凭据存储）</Radio>
+                      <Radio name="tccli">tccli 配置（~/.tccli）</Radio>
+                    </Radio.Group>
                   </Form.Item>
                   {draft.source === 'store' ? (
                     <>

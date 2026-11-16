@@ -2,22 +2,30 @@
  * Bundle the browser half into DSH ModuleLoader scripts:
  *   lib/client.js          entry (slots, renderers, settings card)
  *   lib/client.echarts.js  ECharts, loaded on demand through require.async
- * React stays external and is resolved from the shared module table; Tea (tea-component)
- * and its stylesheet are bundled into client.js.
+ * React stays external and is resolved from the shared module table. The Tea components
+ * the plugin uses, and only the Tea CSS rules and theme variables they need, are bundled
+ * into client.js (see tea-trim-plugin.ts and tea-css.ts).
  * Also builds the standalone component design page into lib/design-page/.
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { build } from 'esbuild'
-import { teaCssPlugin } from './tea-css.ts'
-import { teaIconsPlugin } from './tea-icons-plugin.ts'
+import { CSS as HOST_CSS } from '../src/client/styles.ts'
+import { buildTeaCss, injectTeaCss, TEA_CSS_PLACEHOLDER, teaCssPlugin } from './tea-css.ts'
+import { teaTrimPlugin } from './tea-trim-plugin.ts'
 
 const ROOT = join(import.meta.dirname, '..')
 const OUT = join(ROOT, 'lib')
 const PKG = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { name: string }).name
 const minify = !process.argv.includes('--dev')
-const plugins = [teaIconsPlugin(ROOT), teaCssPlugin(ROOT)]
+const plugins = [teaTrimPlugin(ROOT), teaCssPlugin()]
+
+/** Fill the Tea CSS placeholder with the rules the bundle (all of `codes`) actually uses. */
+function withTeaCss<T extends string[]>(codes: T): { codes: T; css: string } {
+  const css = buildTeaCss(ROOT, codes.join('\n'), HOST_CSS)
+  return { codes: codes.map((c) => (c.includes(TEA_CSS_PLACEHOLDER) ? injectTeaCss(c, css) : c)) as T, css }
+}
 
 async function bundle(entry: string): Promise<string> {
   const result = await build({
@@ -46,7 +54,8 @@ function wrap(code: string, chunk?: string): string {
 }
 
 mkdirSync(OUT, { recursive: true })
-const main = wrap(await bundle('src/client/index.tsx'))
+const { codes: [mainCode], css: teaCss } = withTeaCss([await bundle('src/client/index.tsx')])
+const main = wrap(mainCode!)
 const echarts = wrap(await bundle('src/client/echarts/index.ts'), 'client.echarts.js')
 if (/echarts\/core|zrender/.test(main)) throw new Error('client.js must not include ECharts; import it only from the lazy chunk')
 writeFileSync(join(OUT, 'client.js'), main)
@@ -54,9 +63,9 @@ writeFileSync(join(OUT, 'client.echarts.js'), echarts)
 const teaDir = dirname(createRequire(join(ROOT, 'package.json')).resolve('tea-component/package.json'))
 copyFileSync(join(teaDir, 'Attribution.txt'), join(OUT, 'tea-component.Attribution.txt'))
 
-await build({
+const testing = await build({
   entryPoints: [join(ROOT, 'src/client/testing.ts')],
-  outfile: join(OUT, 'tests', 'client-under-test.cjs'),
+  write: false,
   bundle: true,
   format: 'cjs',
   platform: 'node',
@@ -69,11 +78,14 @@ await build({
   logLevel: 'warning',
   plugins,
 })
+mkdirSync(join(OUT, 'tests'), { recursive: true })
+writeFileSync(join(OUT, 'tests', 'client-under-test.cjs'), withTeaCss([testing.outputFiles[0]!.text]).codes[0]!)
 const DESIGN = join(OUT, 'design-page')
 rmSync(DESIGN, { recursive: true, force: true })
-await build({
+const design = await build({
   entryPoints: { design: join(ROOT, 'src/design/page.tsx') },
   outdir: DESIGN,
+  write: false,
   bundle: true,
   splitting: true,
   format: 'esm',
@@ -90,6 +102,11 @@ await build({
   logLevel: 'warning',
   plugins,
 })
+const designCodes = withTeaCss(design.outputFiles.map((f) => f.text)).codes
+design.outputFiles.forEach((f, i) => {
+  mkdirSync(dirname(f.path), { recursive: true })
+  writeFileSync(f.path, designCodes[i]!)
+})
 writeFileSync(join(DESIGN, 'index.html'), `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -103,4 +120,4 @@ writeFileSync(join(DESIGN, 'index.html'), `<!doctype html>
 </body>
 </html>
 `)
-console.log(`client: client.js ${(main.length / 1024).toFixed(0)}KB, client.echarts.js ${(echarts.length / 1024).toFixed(0)}KB, design page lib/design-page/`)
+console.log(`client: client.js ${(main.length / 1024).toFixed(0)}KB (Tea CSS ${(teaCss.length / 1024).toFixed(0)}KB), client.echarts.js ${(echarts.length / 1024).toFixed(0)}KB, design page lib/design-page/`)

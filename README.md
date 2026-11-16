@@ -75,6 +75,6 @@ dsh plugin --profile web add link:$PWD
 
 - `lib/host.js`：Host 插件。
 - `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录和 12MB 的按产品分文件。
-- `lib/client.js`：Client 插件，约 630KB，其中 Tea 的 JS 约 310KB，经过作用域处理的 Tea 样式约 300KB。
+- `lib/client.js`：Client 插件，约 250KB（gzip 约 60KB）。只打包用到的 Tea 组件（JS 约 110KB）和它们需要的 Tea 样式与主题变量（约 120KB）。
 - `lib/client.echarts.js`：ECharts chunk（只含折线、柱状、饼图），约 600KB，出现图表时才加载。
 - `lib/design-page/`：组件设计页，自带 React，由插件在 `/cloud-infra/design/` 提供。

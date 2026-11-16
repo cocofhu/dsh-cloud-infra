@@ -337,10 +337,11 @@ const registry = new Map<string, ViewComponent<any>>()
 
 - 编译结果用内部的 `group`（纵向排列）承载根 `items` 和每个标签页。未注册的 `kind`（例如旧会话里已移除的组件）或渲染异常会退回折叠的 JSON，不会让整张卡片失败。
 - 组件基于打包进插件的 Tea（`tea-component`），只依赖共享模块表里的 `react` / `react-dom`，不依赖 DSH 内部组件的 API 稳定性。插件自己的外框和胶水样式使用 `ci-` 前缀。
-- 组件映射：每个内容组件放在 Tea `Card` 里（`Card.Body` 的 title 即组件标题）；table → `Table` + `sortable` / `pageable` 插件 + `SearchBox`；tabs → `Tabs` / `TabPanel`（切走即卸载，避免隐藏的图表尺寸为 0）；stats → `MetricsBoard`，tone 用 `Text` 的主题色；kv → 只读 `Form`（固定标签宽度，多列网格）；status → Tea `Badge` 圆点 + 文字；标签 → `Tag`。工具卡片和设置页用 `Tag`、`Button`、`Table`、`Form`、`Input`、`Select`、`Checkbox`、`Icon`。
+- 组件映射：每个内容组件放在 Tea `Card` 里（`Card.Body` 的 title 即组件标题）；table → `Table` + `sortable` / `pageable` 插件 + `SearchBox`；tabs → `Tabs` / `TabPanel`（切走即卸载，避免隐藏的图表尺寸为 0）；stats → `MetricsBoard`，tone 用 `Text` 的主题色；kv → 只读 `Form`（固定标签宽度，多列网格）；status → Tea `Badge` 圆点 + 文字；标签 → `Tag`。工具卡片和设置页用 `Tag`、`Button`、`Table`、`Form`、`Input`、`Radio`、`Checkbox`、`Icon`。
 - 打包 Tea：`tea-component` 的 npm 许可证是 `UNLICENSED`，已获授权随插件分发，第三方声明复制到 `lib/tea-component.Attribution.txt`。构建做了三件事：
-  - `scripts/tea-icons-plugin.ts`：Tea 的 `Icon` 会引入 tea-icons-react 的整包（约 370KB）。插件把类型到 SVG 组件的映射换成空表，`<Icon type>` 退回 Tea 样式表里的 CSS 图标；其他 Tea 组件直接 import 的 9 个图标保留。
-  - `scripts/tea-css.ts`：用 postcss 处理 `themes/default-pack.css` + `tea-themeable-no-reset.css`。主题变量从 `:root` / `[theme-mode=…]` 改挂到 `body` 和 `body[data-ds-dark-theme]`，跟随 DSH 的暗色切换，去掉 `color-scheme`；不是 Tea 类名的少数全局选择器限定到 `.ci-root` 下；Tea 的元素 reset 以 `:where(.ci-root)` 限定，保持原有的低优先级；keyframes 加 `tea-` 前缀；删掉从未使用的组件（日期、菜单、步骤条、树等）的规则。Tea 类名本身保持全局，这样渲染到 `body` 的弹层（如 Select 下拉）也有样式。
+  - 按需打包 JS（`scripts/tea-trim-plugin.ts`）：只从 `tea-component` 的 ES 模块按名引入（`src/client/tea.ts`），再在构建时切掉 Tea 内部"静态挂载但用不到"的部分：`Icon` 的 SVG 图标表换成空表，图标退回 Tea 样式表里的 CSS 图标，不再打包 tea-icons-react；`Table.addons` 只含 `TABLE_ADDONS` 列出的 `sortable`、`pageable`；`Select`（Bubble 只拿它比较子元素类型、Pagination 只在每页条数选择器里用）、`Input.Password`（强度弹层）、虚拟滚动表体换成渲染即报错的空实现；弹层 Tooltip 换成原生 `title` 属性（分页按钮的提示仍在），Form.Item 的 `tips` 气泡和 Text 的复制按钮只渲染子元素，从而不再打包 popper.js、react-window 等依赖。要用新的 Tea 组件或属性时，先确认它不依赖被切掉的部分。
+  - 按需打包 CSS（`scripts/tea-css.ts`）：JS 打包时先放占位字符串，打包后扫描产物，只保留 Tea 类名在产物里出现的规则。Tea 用 `classPrefix + "-table__body"`、`"-icon-" + type`、`btnClassName + "--" + type` 这类方式拼类名，所以判定为：类名后缀整体出现，或能切成“产物中的词 + 分隔符 + 至多两段字符串字面量”。主题变量只保留从保留下来的 CSS、插件自身 CSS 和 JS 出发、沿 `var()` 引用可达的部分。主题变量从 `:root` / `[theme-mode=…]` 改挂到 `body` 和 `body[data-ds-dark-theme]`，跟随 DSH 的暗色切换，去掉 `color-scheme`；不是 Tea 类名的少数全局选择器限定到 `.ci-root` 下；Tea 的元素 reset 以 `:where(.ci-root)` 限定，保持原有的低优先级；keyframes 加 `tea-` 前缀，未引用的删除。Tea 类名本身保持全局，渲染到 `body` 的元素也有样式。`tea-css.test.ts` 服务端渲染全部示例、工具卡片和设置页，检查凡是选择器中的 Tea 类名都出现在渲染结果里的规则都被保留。
+  - DSH 全局设置了 `corner-shape: superellipse(1.5)`，Tea 的圆形元素（单选框、状态点、加载图标）会被画成圆角方块，所以插件内部和 Tea 元素恢复 `corner-shape: round`。
   - 处理后的样式以 `virtual:tea-css` 模块打进 `client.js`，和插件自己的样式一起注入一个 `<style>`。
 - `styles.ts` 的 `--ci-*` token 只用于插件外框（工具卡片、JSON 节选）和 ECharts 主题，取值与 Tea 的亮色 / 暗色一致。
 - 表格内置筛选、排序和分页，每页 10 行。
@@ -415,7 +416,7 @@ const registry = new Map<string, ViewComponent<any>>()
 - 索引：`scripts/build-api-index.ts` 输出到 `lib/api-index/`。
 - `package.json` 声明 `dsh.bundle.patch`、`dsh.client`（`platform: 'web'`、`inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-slots', '@deepseek-ai/dsh-client-ui-plugin-manager']`），以及 `exports["./client"]`。
 - 组件设计页：`src/design/page.tsx` 单独打包到 `lib/design-page/`（ESM，自带 React，ECharts 拆成懒加载 chunk）。浏览器构建里把 `@deepseek-ai/dsh-tools` 换成只导出 `ToolArgsError` 的小模块，这样示例能直接走真实的 `validateView` 和 `compileView`。Host 用前缀路由 `/cloud-infra/design` 提供静态文件，`pnpm design` 也可以脱离 DSH 单独运行。
-- 产物大小：`client.js` 约 630KB（Tea JS 约 310KB、Tea 样式约 300KB），`client.echarts.js` 约 600KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
+- 产物大小：`client.js` 约 250KB（gzip 约 60KB；Tea JS 约 110KB、Tea 样式约 120KB），`client.echarts.js` 约 600KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
 - 安装：`dsh plugin --profile web add @cocofhu/dsh-cloud-infra`。
 
 ## 13. 测试策略

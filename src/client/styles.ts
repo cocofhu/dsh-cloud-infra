@@ -18,6 +18,7 @@ export const CSS = `
 .ci-root{${TOKENS_LIGHT};font-family:var(--tea-font-family-default);color:var(--ci-text);font-size:12px;line-height:1.5;min-width:0}
 body[data-ds-dark-theme] .ci-root{${TOKENS_DARK}}
 .ci-root *{box-sizing:border-box}
+.ci-root *,[class*=tea-],[class*=tea-]::before,[class*=tea-]::after{corner-shape:round}
 body{--tea-border-radius-default:var(--tea-border-radius-150);--card-border-radius:var(--tea-border-radius-200)}
 .ci-tool{border-radius:8px;overflow:hidden;margin:4px 0 8px;border:1px solid var(--ci-border);background:var(--ci-bg)}
 .ci-tool-head{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;cursor:pointer;user-select:none;min-width:0;background:transparent;border:0;width:100%;font:inherit;color:inherit;text-align:left}
@@ -55,7 +56,7 @@ body{--tea-border-radius-default:var(--tea-border-radius-150);--card-border-radi
 .ci-kv .tea-form__text{word-break:break-all}
 .ci-cfg-item{list-style:none;margin:0;padding:0;min-width:0}
 .ci-form{border-radius:8px;background:var(--ci-bg-sub);padding:16px 20px}
-.ci-form .tea-input,.ci-form .tea-dropdown{width:320px;max-width:100%}
+.ci-form .tea-input{width:320px;max-width:100%}
 .ci-btns{display:flex;gap:8px;flex-wrap:wrap}
 .ci-danger.tea-btn--link{color:var(--ci-danger)}
 `
