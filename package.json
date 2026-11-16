@@ -45,6 +45,7 @@
     "build:host": "tsc -p tsconfig.json",
     "build:index": "node scripts/build-api-index.ts",
     "build:client": "node scripts/build-client.ts",
+    "design": "npm run build && node scripts/serve-design.ts",
     "prepack": "npm run build",
     "test": "npm run build && node --test \"lib/tests/**/*.test.js\"",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json"

@@ -1,6 +1,7 @@
 export const STYLE_ID = 'dsh-cloud-infra-style'
 
 export const CSS = `
+[data-step-process-body]:has(.ci-view){max-height:none;overflow:visible}
 .ci-root{font-family:inherit;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;min-width:0}
 .ci-tool{margin:4px 0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
 .ci-tool-head{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none;min-width:0;background:transparent;border:0;width:100%;font:inherit;color:inherit;text-align:left}
@@ -20,7 +21,8 @@ export const CSS = `
 @keyframes ci-spin{to{transform:rotate(360deg)}}
 .ci-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--dsw-alias-label-caption);margin-bottom:8px}
 .ci-meta b{color:var(--dsw-alias-label-secondary);font-weight:500;margin-left:4px}
-.ci-pre{margin:0;padding:10px;border-radius:8px;background:var(--dsw-alias-bg-layer-3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-all;max-height:360px;overflow:auto}
+.ci-pre{margin:0;padding:10px;border-radius:8px;background:var(--dsw-alias-bg-layer-3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-all}
+.ci-more{appearance:none;border:0;background:transparent;color:var(--dsw-alias-brand-primary-new-colorprimary-new-color);cursor:pointer;font:inherit;font-size:12px;padding:4px 0 0}
 .ci-err{color:var(--dsw-alias-state-error-primary);font-size:12px;white-space:pre-wrap;word-break:break-word}
 .ci-view{padding:2px 0}
 .ci-view-title{font-size:15px;font-weight:650;margin:2px 0 10px}
@@ -33,12 +35,12 @@ export const CSS = `
 .ci-card-t{font-weight:600;font-size:14px}
 .ci-card-s{color:var(--dsw-alias-label-tertiary);font-size:12px}
 .ci-sec-t{font-weight:600;margin:0 0 6px;font-size:13px}
-.ci-tabs{display:flex;gap:2px;border-bottom:1px solid var(--dsw-alias-border-l2);margin-bottom:10px;overflow-x:auto}
+.ci-tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--dsw-alias-border-l2);margin-bottom:10px}
 .ci-tab{appearance:none;border:0;border-bottom:2px solid transparent;background:transparent;padding:7px 12px;cursor:pointer;color:var(--dsw-alias-label-caption);font:inherit;white-space:nowrap}
 .ci-tab.on{color:var(--dsw-alias-brand-primary-new-colorprimary-new-color);border-bottom-color:var(--dsw-alias-brand-primary-new-colorprimary-new-color);font-weight:600}
-.ci-table-wrap{overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;max-height:520px}
+.ci-table-wrap{overflow-x:auto;overflow-y:hidden;border:1px solid var(--dsw-alias-border-l1);border-radius:8px}
 .ci-table{border-collapse:collapse;width:100%;font-size:12px}
-.ci-table th{position:sticky;top:0;background:var(--dsw-alias-bg-layer-3);text-align:left;font-weight:600;color:var(--dsw-alias-label-secondary);padding:7px 10px;border-bottom:1px solid var(--dsw-alias-border-l2);white-space:nowrap;cursor:pointer;user-select:none}
+.ci-table th{background:var(--dsw-alias-bg-layer-3);text-align:left;font-weight:600;color:var(--dsw-alias-label-secondary);padding:7px 10px;border-bottom:1px solid var(--dsw-alias-border-l2);white-space:nowrap;cursor:pointer;user-select:none}
 .ci-table td{padding:6px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);vertical-align:top;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ci-table tr:last-child td{border-bottom:0}
 .ci-table tbody tr:hover td{background:var(--dsw-alias-interactive-bg-hover)}
@@ -49,6 +51,7 @@ export const CSS = `
 .ci-pager{display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:6px;font-size:12px;color:var(--dsw-alias-label-caption)}
 .ci-btn{appearance:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);color:var(--dsw-alias-label-primary);border-radius:6px;padding:3px 10px;cursor:pointer;font:inherit;font-size:12px}
 .ci-btn:disabled{opacity:.45;cursor:default}
+a.ci-btn{text-decoration:none;display:inline-flex;align-items:center;flex:none}
 .ci-btn.primary{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground);border-color:transparent}
 .ci-btn.danger{color:var(--dsw-alias-state-error-primary)}
 .ci-kv{display:grid;gap:6px 18px}

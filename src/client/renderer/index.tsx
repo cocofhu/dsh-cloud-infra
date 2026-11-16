@@ -61,7 +61,24 @@ export function JsonBlock({ value }: { value: JsonValue }) {
     const s = JSON.stringify(value, null, 2) ?? 'null'
     return s.length > 200_000 ? `${s.slice(0, 200_000)}\n…` : s
   }, [value])
-  return <pre className="ci-pre">{text}</pre>
+  return <PreBlock text={text} />
+}
+
+/** Long text folds to its first lines instead of scrolling, so the chat keeps a single scrollbar. */
+export function PreBlock({ text, lines = 16 }: { text: string; lines?: number }) {
+  const [expanded, setExpanded] = useState(false)
+  const all = useMemo(() => text.split('\n'), [text])
+  const folded = !expanded && all.length > lines + 4
+  return (
+    <div>
+      <pre className="ci-pre">{folded ? all.slice(0, lines).join('\n') : text}</pre>
+      {all.length > lines + 4 ? (
+        <button type="button" className="ci-more" onClick={() => setExpanded(!expanded)}>
+          {expanded ? '收起' : `展开全部（${all.length} 行）`}
+        </button>
+      ) : null}
+    </div>
+  )
 }
 
 function SectionTitle({ title }: { title?: string }) {
@@ -147,7 +164,7 @@ registerViewComponent('table', ({ node }) => {
     if (sort) out = [...out].sort((a, b) => compare(a[sort.col] ?? null, b[sort.col] ?? null) * sort.dir)
     return out
   }, [node.rows, query, sort])
-  const pageSize = node.pageSize || 20
+  const pageSize = node.pageSize || 10
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const current = Math.min(page, pages - 1)
   const visible = rows.slice(current * pageSize, current * pageSize + pageSize)

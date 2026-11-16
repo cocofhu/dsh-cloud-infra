@@ -58,7 +58,7 @@ test('tables infer columns, one nested level and formats', () => {
   const { view, summary } = compile({ kind: 'table', data: { ref: 'r1', path: 'InstanceSet' }, columns: [{ key: 'InstanceId' }, { key: 'Placement.Zone', title: '可用区' }] })
   assert.deepEqual(view.body, {
     kind: 'table', columns: [{ key: 'InstanceId', title: 'InstanceId' }, { key: 'Placement.Zone', title: '可用区' }],
-    rows: [['ins-1', 'ap-guangzhou-3'], ['ins-2', 'ap-guangzhou-3'], ['ins-3', 'ap-guangzhou-6']], total: 3, pageSize: 20,
+    rows: [['ins-1', 'ap-guangzhou-3'], ['ins-2', 'ap-guangzhou-3'], ['ins-3', 'ap-guangzhou-6']], total: 3, pageSize: 10,
   })
   assert.match(summary[0]!, /3 rows × 2 columns/)
 })

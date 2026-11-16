@@ -43,7 +43,20 @@ Cloud View 组件：`group` `tabs` `card` `table` `kv` `stats` `chart`（line、
 
 ## 在 DSH 中的展示
 
-`cloud_call` 和 `cloud_visualize` 的结果渲染在工具调用行里。DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，分组内容最高 400px、超出部分滚动显示。如果希望可视化结果始终展开，可以在 DSH 设置里把对话详情切换到 verbose，或把折叠时机改为「下次输入时」。
+`cloud_call` 和 `cloud_visualize` 的结果渲染在工具调用行里。DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，点开后可以看到。如果希望可视化结果始终展开，可以在 DSH 设置里把对话详情切换到 verbose，或把折叠时机改为「下次输入时」。
+
+为了让对话只保留一条滚动条，组件本身不做纵向滚动：
+- 表格分页显示，默认每页 10 行；列太宽时只出现横向滚动条。
+- JSON 和结果节选超过 20 行时折叠，点击「展开全部」查看。
+- DSH 的「Called tools」分组默认最高 400px，包含 Cloud View 的分组会取消这个高度限制。
+
+## 组件设计页
+
+所有 Cloud View 组件的示例集中在一个设计页里，每个示例都用真实的 Spec 经过与 `cloud_visualize` 相同的校验和编译，可以查看对应的 JSON，并切换亮色和暗色主题。
+- 在 DSH 中：「插件 → @cocofhu/dsh-cloud-infra」账号卡片右上角的「组件设计页」，或直接访问 `/cloud-infra/design/`。
+- 单独运行：`pnpm design`，然后打开 http://127.0.0.1:5180/cloud-infra/design/ 。
+
+示例数据和 Spec 在 `src/design/samples.ts`。新增组件或图表类型时在这里补充示例，测试会检查每种组件和图表类型都有示例、都能编译。
 
 ## 开发
 
@@ -52,6 +65,7 @@ pnpm install
 pnpm build        # tsc + API 索引 + 浏览器端 bundle
 pnpm test         # 构建并运行全部测试
 pnpm typecheck    # Host 与 Client 两套 tsconfig
+pnpm design       # 构建并在 5180 端口打开组件设计页
 dsh plugin --profile web add link:$PWD
 ```
 
@@ -61,3 +75,4 @@ dsh plugin --profile web add link:$PWD
 - `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录和 12MB 的按产品分文件。
 - `lib/client.js`：Client 插件，约 39KB。
 - `lib/client.echarts.js`：ECharts chunk，约 870KB，出现图表时才加载。
+- `lib/design-page/`：组件设计页，自带 React，由插件在 `/cloud-infra/design/` 提供。

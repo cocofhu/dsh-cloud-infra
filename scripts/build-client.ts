@@ -3,8 +3,9 @@
  *   lib/client.js          entry (slots, renderers, settings card)
  *   lib/client.echarts.js  ECharts, loaded on demand through require.async
  * React stays external and is resolved from the shared module table.
+ * Also builds the standalone component design page into lib/design-page/.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { build } from 'esbuild'
 
@@ -58,4 +59,37 @@ await build({
   jsxFragment: 'React.Fragment',
   logLevel: 'warning',
 })
-console.log(`client: client.js ${(main.length / 1024).toFixed(0)}KB, client.echarts.js ${(echarts.length / 1024).toFixed(0)}KB`)
+const DESIGN = join(OUT, 'design-page')
+rmSync(DESIGN, { recursive: true, force: true })
+await build({
+  entryPoints: { design: join(ROOT, 'src/design/page.tsx') },
+  outdir: DESIGN,
+  bundle: true,
+  splitting: true,
+  format: 'esm',
+  platform: 'browser',
+  target: 'es2020',
+  chunkNames: 'chunks/[name]-[hash]',
+  alias: { '@deepseek-ai/dsh-tools': join(ROOT, 'src/design/dsh-tools-shim.ts') },
+  jsx: 'transform',
+  jsxFactory: 'React.createElement',
+  jsxFragment: 'React.Fragment',
+  define: { 'process.env.NODE_ENV': '"production"' },
+  minify,
+  legalComments: 'none',
+  logLevel: 'warning',
+})
+writeFileSync(join(DESIGN, 'index.html'), `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud View 组件 · ${PKG}</title>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="./design.js"></script>
+</body>
+</html>
+`)
+console.log(`client: client.js ${(main.length / 1024).toFixed(0)}KB, client.echarts.js ${(echarts.length / 1024).toFixed(0)}KB, design page lib/design-page/`)

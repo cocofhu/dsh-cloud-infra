@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": false,
     "esModuleInterop": true
   },
-  "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "src/view/spec.ts"]
+  "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "src/design/**/*.ts", "src/design/**/*.tsx", "src/view/spec.ts"]
 }

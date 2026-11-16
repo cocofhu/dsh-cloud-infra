@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { CompiledView } from '../view/spec.js'
-import { Badge, ViewRenderer } from './renderer/index.js'
+import { Badge, PreBlock, ViewRenderer } from './renderer/index.js'
 import type { ToolResultBlock, ToolViewProps } from './types.js'
 
 const { useState } = React
@@ -98,7 +98,7 @@ export function CallToolView(props: ToolViewProps) {
         <span>RequestId<b>{meta.requestId ?? '—'}</b></span>
         {meta.failedRegions?.length ? <span>失败地域<b>{meta.failedRegions.join(', ')}</b></span> : null}
       </div>
-      <pre className="ci-pre">{meta.preview}</pre>
+      <PreBlock text={meta.preview} />
       {meta.truncated ? <div className="ci-note">结果较大，此处为节选；完整结果缓存为 {meta.ref}。</div> : null}
     </Shell>
   )

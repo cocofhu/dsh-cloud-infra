@@ -53,6 +53,7 @@ DeepSeek Harness（DSH）插件：让 Agent 在对话中调用云厂商的 OpenA
 │ plugins.bundle.config[包名]            插件页里的账号管理卡片                     │
 │ ViewRenderer 注册表：kind → 组件（table / kv / stats / chart / tabs …）           │
 │ client.echarts.js                      ECharts 懒加载 chunk                       │
+│ /cloud-infra/design/                   组件设计页（独立页面）                     │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -414,7 +415,8 @@ const registry = new Map<string, ViewComponent<any>>()
 - Client：`scripts/build-client.ts` 用 esbuild 打包两个入口：`lib/client.js`（主入口）和 `lib/client.echarts.js`（懒加载 chunk）。两者都包成 `window.__ModuleLoader__.load({ id, factory: (require) => … })` 的形式；`react`、`react/jsx-runtime`、`@deepseek-ai/dsh-client-ui-*` 等共享模块保持 external，由注入的 `require` 解析。
 - 索引：`scripts/build-api-index.ts` 输出到 `lib/api-index/`。
 - `package.json` 声明 `dsh.bundle.patch`、`dsh.client`（`platform: 'web'`、`inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-slots', '@deepseek-ai/dsh-client-ui-plugin-manager']`），以及 `exports["./client"]`。
-- 产物大小：`client.js` 约 39KB，`client.echarts.js` 约 870KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
+- 组件设计页：`src/design/page.tsx` 单独打包到 `lib/design-page/`（ESM，自带 React，ECharts 拆成懒加载 chunk）。浏览器构建里把 `@deepseek-ai/dsh-tools` 换成只导出 `ToolArgsError` 的小模块，这样示例能直接走真实的 `validateView` 和 `compileView`。Host 用前缀路由 `/cloud-infra/design` 提供静态文件，`pnpm design` 也可以脱离 DSH 单独运行。
+- 产物大小：`client.js` 约 40KB，`client.echarts.js` 约 870KB。构建时还会额外打一个 Node 可加载的 `lib/tests/client-under-test.cjs`，供服务端渲染测试使用，不随包发布。
 - 安装：`dsh plugin --profile web add @cocofhu/dsh-cloud-infra`。
 
 ## 13. 测试策略
@@ -455,6 +457,7 @@ const registry = new Map<string, ViewComponent<any>>()
 - 已验证：外部构建的懒加载 chunk（`client.echarts.js`）能被 DSH web 正常加载。
 - 已验证：审批详情插槽被 DSH 占用，结论见 §7.2。
 - 已验证：索引体积为目录 0.9MB 加产品文件 12MB，保留全部版本。
-- DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，分组内容最高 400px。可视化结果因此在回合结束后需要展开才能看到。这是 DSH 的展示策略，插件不覆盖。用户可以在设置里切换到 verbose 视图，或把折叠时机改为“下次输入时”。
+- DSH 0.2 会把已完成回合的工具调用折叠进「Called tools」分组，可视化结果因此在回合结束后需要展开才能看到。这是 DSH 的展示策略，插件不覆盖。用户可以在设置里切换到 verbose 视图，或把折叠时机改为“下次输入时”。
+- 该分组内容默认最高 400px 并自行滚动，再加上表格、JSON 的内部滚动，会出现多层滚动条。现在的处理：组件不做纵向滚动（表格分页、长文本折叠），并用 `[data-step-process-body]:has(.ci-view)` 取消包含 Cloud View 的分组的高度限制，对话只保留一条滚动条。这依赖 DSH 的 `data-step-process-body` 属性；DSH 改名后只会退回到原来的 400px 滚动，不影响功能。
 - 可能的后续方案：注册 `conversation.chat.markdown.fence` 的 `cloud-view` 语言层，让模型在最终回复里用代码块引用某次可视化，把视图渲染在不会折叠的回复正文中。这需要从聊天快照里按 callId 找到对应工具结果，会依赖 DSH 的内部数据结构，暂不实现。
 - ECharts 体积较大，必须保持懒加载，主入口不能引入它。

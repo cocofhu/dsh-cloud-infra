@@ -130,7 +130,7 @@ class Compiler {
     const kept = this.cap(rows)
     const cells = kept.map((r) => columns.map((c) => cell(getPath(r, c.key))))
     this.summary.push(`table${n.title ? ` "${n.title}"` : ''}: ${rows.length} rows × ${columns.length} columns (${columns.map((c) => c.key).join(', ')})`)
-    return { kind: 'table', ...opt('title', n.title), columns, rows: cells, total: rows.length, pageSize: n.pageSize ?? 20 }
+    return { kind: 'table', ...opt('title', n.title), columns, rows: cells, total: rows.length, pageSize: n.pageSize ?? 10 }
   }
 
   private kv(n: Extract<ViewNode, { kind: 'kv' }>, at: string): CompiledNode {

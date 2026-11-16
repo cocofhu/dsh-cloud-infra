@@ -15,6 +15,7 @@ import { callTool } from './tools/call.js'
 import { resultTool } from './tools/result.js'
 import { visualizeTool } from './tools/visualize.js'
 import { API_PATH, createApiHandler } from './web/api.js'
+import { createStaticHandler, DESIGN_DIR, DESIGN_PATH } from './web/static.js'
 
 export const name = 'cloud-infra'
 export const inject = ['tools']
@@ -27,7 +28,7 @@ interface SettingsService {
 }
 
 interface WebServerService {
-  register: (route: { kind: 'exact'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => () => void
+  register: (route: { kind: 'exact' | 'prefix'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => () => void
 }
 
 export const SYSTEM_PROMPT = [
@@ -115,5 +116,6 @@ export function apply(ctx: Context, config: Partial<Config>): void {
       },
     })
     c.effect(() => server.register({ kind: 'exact', path: API_PATH, handler }))
+    c.effect(() => server.register({ kind: 'prefix', path: DESIGN_PATH, handler: createStaticHandler(DESIGN_PATH, DESIGN_DIR) }))
   })
 }
