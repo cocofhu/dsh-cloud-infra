@@ -120,6 +120,7 @@ dsh-cloud-infra/
       i18n.tsx            中英文词典，跟随 DSH 界面语言
       tea.ts  styles.ts   用到的 Tea 组件、插件样式
       testing.ts          测试用入口（打包成 lib/tests/client-under-test.cjs）
+    design/               组件设计页（开发用，界面中无入口）：示例 Spec 与页面
   lib/                    构建产物（发布内容）
     api-index/            catalog.json + <service>.json + en/<service>.json
 ```
