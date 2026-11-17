@@ -104,6 +104,7 @@ test('tool views render call and view results; apply registers slots', () => {
   const result = (meta: unknown, extra: object = {}) => ({ kind: 'tool-result', callId: 'c', name: 'x', call: null, content: [], isError: false, meta, ...extra })
   const call = html(React.createElement(client.CallToolView, { phase: 'result', toolName: 'cloud_call', callId: 'c1', useDisclosure: expanded, block: result(callMeta) }))
   for (const s of ['cvm.DescribeInstances', 'ap-guangzhou', 'req-1', 'TotalCount', '只读']) assert.ok(call.includes(s), s)
+  assert.doesNotMatch(call, />r1</, 'the result ref is for the model, not shown to users')
   const collapsed = html(React.createElement(client.CallToolView, { phase: 'result', toolName: 'cloud_call', callId: 'c1', block: result(callMeta) }))
   assert.ok(!collapsed.includes('req-1'))
   const vis = html(React.createElement(client.VisualizeToolView, { phase: 'result', toolName: 'cloud_visualize', callId: 'c2', block: result({ kind: 'cloud-view', view: view({ kind: 'kv', data: { note: 'hello view' } }) }) }))

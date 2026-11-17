@@ -91,7 +91,7 @@ export function CallToolView(props: ToolViewProps) {
   const where = meta.regions ? `${meta.regions.length} 个地域${meta.failedRegions?.length ? `（${meta.failedRegions.length} 个失败）` : ''}` : meta.region ?? ''
   return (
     <Shell title={`云 API · ${meta.service}.${meta.action}`} sub={[meta.account, where, `${meta.durationMs}ms`].filter(Boolean).join(' · ')} open={open} toggle={toggle}
-      badges={<><Badge tone={riskTone}>{riskLabel}</Badge><Badge tone="neutral">{meta.ref}</Badge></>}>
+      badges={<Badge tone={riskTone}>{riskLabel}</Badge>}>
       <div className="ci-meta">
         <span>账号<b>{meta.account}</b></span>
         {where ? <span>地域<b>{where}</b></span> : null}
@@ -100,7 +100,7 @@ export function CallToolView(props: ToolViewProps) {
         {meta.failedRegions?.length ? <span>失败地域<b>{meta.failedRegions.join(', ')}</b></span> : null}
       </div>
       <PreBlock text={meta.preview} />
-      {meta.truncated ? <div className="ci-note">结果较大，此处为节选；完整结果缓存为 {meta.ref}。</div> : null}
+      {meta.truncated ? <div className="ci-note">结果较大，此处只展示节选。</div> : null}
     </Shell>
   )
 }
