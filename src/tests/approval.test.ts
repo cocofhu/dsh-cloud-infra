@@ -44,10 +44,9 @@ test('writes ask with a redacted summary', () => {
   assert.match(decision.reason ?? '', /HIGH-RISK cloud API call cvm.ResetInstancesPassword on tencent account dev \/ ap-shanghai/)
   assert.doesNotMatch(decision.reason ?? '', /hunter2/)
   const zh = decision.displayReason?.['zh-CN'] ?? ''
-  assert.match(zh, /^⚠ 高危操作 · 将实例操作系统的密码重置为用户指定的密码\ncvm.ResetInstancesPassword · 账号 dev · 地域 ap-shanghai\n/)
-  assert.match(zh, /实例ID：ins-1\n重置后的实例登录密码：\*{6}$/)
-  assert.doesNotMatch(zh, /hunter2/)
-  assert.match(decision.displayReason?.en ?? '', /\nInstanceIds: ins-1\nPassword: \*{6}$/)
+  assert.equal(zh, '⚠ 高危操作 · 将实例操作系统的密码重置为用户指定的密码（cvm.ResetInstancesPassword，账号 dev，地域 ap-shanghai）\n'
+    + '· 一个或多个待操作的实例ID：ins-1\n· 重置后的实例登录密码：******')
+  assert.match(decision.displayReason?.en ?? '', /\n· Instance ids: ins-1\n· Password: \*{6}$/)
 })
 
 test('writes on read-only accounts are denied before approval', () => {
@@ -59,4 +58,15 @@ test('other tools and unresolved accounts are left to the tool body', () => {
   assert.equal(decide(runtime(), exec({ service: 'cvm', action: 'RunInstances' }, 'bash')), undefined)
   assert.equal(decide(runtime(), exec({ service: 'cvm', action: 'RunInstances' })), undefined)
   assert.equal(decide(runtime(), exec({ account: 'nope', service: 'cvm', action: 'RunInstances' })), undefined)
+})
+
+test('approval text explains enum values from the API docs', () => {
+  const decision = decide(runtime(), exec({
+    account: 'dev', service: 'ssl', action: 'ApplyCertificate',
+    params: { DvAuthMethod: 'DNS_AUTO', DomainName: 'example.com', PackageType: '83' },
+  }))
+  assert.equal(decision?.kind, 'ask')
+  if (decision?.kind !== 'ask') return
+  assert.equal(decision.displayReason?.['zh-CN'], '写操作 · 免费证书申请（ssl.ApplyCertificate，账号 dev）\n'
+    + '· 证书域名验证方式：DNS_AUTO（自动添加域名DNS验证）\n· 证书绑定的域名：example.com\n· 证书类型：83（TrustAsia C1 DV Free）')
 })
