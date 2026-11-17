@@ -46,6 +46,8 @@ body{--tea-border-radius-default:var(--tea-border-radius-150);--card-border-radi
 .ci-status{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .ci-status .tea-badge--dot{flex:none}
 .ci-dot{width:6px;height:6px;border-radius:50%;background:var(--ci-weak);flex:none}
+.ci-table-scroll{overflow-x:auto;overflow-y:hidden}
+.ci-table-scroll .tea-table__body td>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ci-tbar{display:flex;justify-content:flex-end;margin-bottom:10px}
 .ci-empty{text-align:center;color:var(--ci-label);padding:20px 0}
 .ci-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px 0}

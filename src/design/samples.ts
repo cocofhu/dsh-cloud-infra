@@ -132,11 +132,11 @@ export const SAMPLES: DesignSample[] = [
   },
   {
     id: 'table', group: '组件', title: 'table 表格',
-    description: '内置筛选、点击表头排序和分页（每页 10 行），不在内部纵向滚动。columns 省略时自动推断，并跳过全空的列。',
+    description: '内置筛选、点击表头排序和分页（每页 10 行），不在内部纵向滚动。列宽按表头和内容估算，放不下时整表横向滚动。columns 省略时自动推断，并跳过全空的列。',
     view: { items: [{ kind: 'table', data: SET, columns: [
-      { key: 'InstanceId' }, { key: 'InstanceName', title: '名称' }, { key: 'InstanceState', title: '状态', format: 'status' },
-      { key: 'CPU', title: 'vCPU', format: 'number' }, { key: 'SystemDisk.DiskSize', title: '系统盘', format: 'number' },
-      { key: 'CreatedTime', title: '创建时间', format: 'datetime' },
+      { key: 'InstanceId' }, { key: 'InstanceName' }, { key: 'InstanceState', format: 'status' }, { key: 'InstanceType' },
+      { key: 'CPU', format: 'number' }, { key: 'Memory', title: '内存 GB', format: 'number' }, { key: 'Placement.Zone', title: '可用区' },
+      { key: 'PublicIpAddresses', title: '公网 IP' }, { key: 'InstanceChargeType', title: '计费' }, { key: 'CreatedTime', title: '创建时间', format: 'datetime' },
     ] }] },
   },
   {

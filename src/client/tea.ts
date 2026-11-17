@@ -8,6 +8,7 @@ export {
   Icon,
   Input,
   MetricsBoard,
+  Pagination,
   Radio,
   SearchBox,
   Table,

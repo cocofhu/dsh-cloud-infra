@@ -4,7 +4,7 @@ import { statusTone } from '../../view/spec.js'
 import { formatValue } from '../format.js'
 import type { EchartsChunk, ModuleRequire } from '../types.js'
 import { CHART_HEIGHT, chartOption } from './chart-option.js'
-import { Card, Form, Icon, MetricsBoard, SearchBox, Table, TabPanel, Tabs, Tag, TeaBadge, Text } from '../tea.js'
+import { Card, Form, Icon, MetricsBoard, Pagination, SearchBox, Table, TabPanel, Tabs, Tag, TeaBadge, Text } from '../tea.js'
 
 const { useEffect, useMemo, useRef, useState } = React
 
@@ -143,6 +143,31 @@ function compare(a: JsonValue, b: JsonValue): number {
 
 interface SortBy { by: string; order: 'asc' | 'desc' | undefined }
 
+/** Rough rendered width of 12px text: CJK glyphs are square, capitals wider than lowercase. */
+function textWidth(text: string): number {
+  let width = 0
+  for (const ch of text) width += /[\u2e80-\uffff]/.test(ch) ? 12 : /[A-Z_]/.test(ch) ? 8.5 : 7
+  return Math.ceil(width)
+}
+
+function cellText(value: JsonValue | undefined, format?: Format): string {
+  if (value === null || value === undefined || value === '') return '-'
+  return typeof value === 'object' && !Array.isArray(value) ? JSON.stringify(value) : formatValue(value, format)
+}
+
+/**
+ * Column widths from the header (plus the sort button) and the 90th percentile of the
+ * first rows, so narrow chats scroll the table sideways instead of squeezing headers.
+ */
+function columnWidths(columns: { title: string; format?: Format }[], rows: JsonValue[][]): number[] {
+  const sample = rows.slice(0, 50)
+  return columns.map((c, i) => {
+    const values = sample.map((r) => textWidth(cellText(r[i], c.format))).sort((a, b) => a - b)
+    const content = (values[Math.floor(values.length * 0.9)] ?? 0) + (c.format === 'status' ? 14 : 0)
+    return Math.min(320, Math.max(72, textWidth(c.title) + 44, content + 28))
+  })
+}
+
 registerViewComponent('table', ({ node }) => {
   const [pageIndex, setPageIndex] = useState(1)
   const [query, setQuery] = useState('')
@@ -163,18 +188,14 @@ registerViewComponent('table', ({ node }) => {
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const current = Math.min(pageIndex, pages)
   const visible = paged ? rows.slice((current - 1) * pageSize, current * pageSize) : rows
+  const widths = useMemo(() => columnWidths(node.columns, node.rows), [node.columns, node.rows])
   const columns = node.columns.map((c, i) => ({
     key: `c${i}`,
     header: c.title,
+    width: widths[i],
     render: (row: JsonValue[]) => <Value value={row[i]} format={c.format} />,
   }))
   const addons = [Table.addons.sortable({ columns: columns.map((c) => c.key), value: sorts, onChange: (v: SortBy[]) => setSorts(v) })]
-  if (paged) {
-    addons.push(Table.addons.pageable({
-      recordCount: rows.length, pageIndex: current, pageSize, pageSizeVisible: false,
-      onPagingChange: (q: { pageIndex?: number }) => setPageIndex(q.pageIndex ?? 1),
-    }))
-  }
   return (
     <Section title={node.title}>
       {paged ? (
@@ -183,13 +204,21 @@ registerViewComponent('table', ({ node }) => {
             onChange={(v: string) => { setQuery(v); setPageIndex(1) }} onClear={() => { setQuery(''); setPageIndex(1) }} />
         </div>
       ) : null}
-      <Table
-        columns={columns}
-        records={visible}
-        recordKey={(_: JsonValue[], i: number) => String((current - 1) * pageSize + i)}
-        addons={addons}
-        topTip={visible.length ? undefined : <div className="ci-empty">{query ? '没有匹配的数据' : '暂无数据'}</div>}
-      />
+      <div className="ci-table-scroll">
+        <div style={{ minWidth: widths.reduce((a, b) => a + b, 0) }}>
+          <Table
+            columns={columns}
+            records={visible}
+            recordKey={(_: JsonValue[], i: number) => String((current - 1) * pageSize + i)}
+            addons={addons}
+            topTip={visible.length ? undefined : <div className="ci-empty">{query ? '没有匹配的数据' : '暂无数据'}</div>}
+          />
+        </div>
+      </div>
+      {paged ? (
+        <Pagination recordCount={rows.length} pageIndex={current} pageSize={pageSize} pageSizeVisible={false}
+          onPagingChange={(q: { pageIndex?: number }) => setPageIndex(q.pageIndex ?? 1)} />
+      ) : null}
       {node.total > node.rows.length ? <div className="ci-note">共 {node.total} 行，展示前 {node.rows.length} 行。</div> : null}
     </Section>
   )
