@@ -74,7 +74,7 @@ Cloud View 只有 5 种组件，按 `items` 顺序从上到下排列：`stats`�
 pnpm install
 pnpm build        # tsc + API 索引 + 浏览器端 bundle
 pnpm test         # 构建并运行全部测试
-pnpm typecheck    # Host 与 Client 两套 tsconfig
+pnpm typecheck    # Host、Client、构建脚本三套 tsconfig
 pnpm design       # 构建并在 5180 端口打开组件设计页
 dsh plugin --profile web add link:$PWD
 ```
@@ -82,7 +82,7 @@ dsh plugin --profile web add link:$PWD
 构建产物：
 
 - `lib/host.js`：Host 插件。
-- `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录和 12MB 的按产品分文件。
+- `lib/api-index/tencent/`：由 `tencentcloud-sdk-nodejs` 的类型声明生成的 API 索引，包括 0.9MB 的目录、12MB 的按产品分文件，以及由国际版 SDK 生成的 4.4MB 英文说明。
 - `lib/client.js`：Client 插件，约 250KB（gzip 约 60KB）。只打包用到的 Tea 组件（JS 约 110KB）和它们需要的 Tea 样式与主题变量（约 120KB）。
 - `lib/client.echarts.js`：ECharts chunk（只含折线、柱状、饼图），约 600KB，出现图表时才加载。
 - `lib/design-page/`：组件设计页，自带 React，由插件在 `/cloud-infra/design/` 提供。
