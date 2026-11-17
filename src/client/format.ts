@@ -26,9 +26,9 @@ function formatDate(d: Date, withSeconds = false): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}${withSeconds ? `:${pad(d.getSeconds())}` : ''}`
 }
 
-function formatNumber(n: number): string {
-  if (Number.isInteger(n)) return n.toLocaleString()
-  return n.toLocaleString(undefined, { maximumFractionDigits: Math.abs(n) < 1 ? 4 : 2 })
+function formatNumber(n: number, useGrouping = true): string {
+  if (Number.isInteger(n)) return useGrouping ? n.toLocaleString() : String(n)
+  return n.toLocaleString(undefined, { maximumFractionDigits: Math.abs(n) < 1 ? 4 : 2, useGrouping })
 }
 
 /** Plain-text rendering of a value under a format; React components add color and tags on top. */
@@ -41,7 +41,7 @@ export function formatValue(v: JsonValue | undefined, format?: Format): string {
     case 'percent': return typeof v === 'number' ? `${formatNumber(v)}%` : String(v)
     case 'bytes': return typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v)) ? formatBytes(Number(v)) : String(v)
     case 'datetime': { const d = toDate(v); return d ? formatDate(d, true) : String(v) }
-    default: return typeof v === 'number' ? formatNumber(v) : String(v)
+    default: return typeof v === 'number' ? formatNumber(v, false) : String(v)
   }
 }
 

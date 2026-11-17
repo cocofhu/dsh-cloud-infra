@@ -43,6 +43,7 @@ test('format helpers', () => {
   assert.equal(client.formatValue(1536, 'bytes'), '1.5 KB')
   assert.equal(client.formatValue(25.6, 'percent'), '25.6%')
   assert.equal(client.formatValue(1234567, 'number'), '1,234,567')
+  assert.equal(client.formatValue(1251810746), '1251810746')
   assert.equal(client.formatValue(null), '—')
   assert.equal(client.formatValue(['a', 'b']), 'a, b')
 })
