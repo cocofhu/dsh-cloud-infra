@@ -106,7 +106,7 @@ test('approved writes reach the provider; rejected writes do not', async () => {
     const approved = await run(ctx, 'cloud_call', args)
     assert.equal(asked.length, 1)
     assert.equal(asked[0]!.toolName, 'cloud_call')
-    assert.match(asked[0]!.displayReason?.['zh-CN'] ?? '', /高危操作：cvm.TerminateInstances · dev/)
+    assert.match(asked[0]!.displayReason?.['zh-CN'] ?? '', /^⚠ 高危操作 · 主动退还实例\ncvm.TerminateInstances · 账号 dev\n/)
     assert.equal(approved.isError, true)
     assert.match(text(approved), /SecretId\/SecretKey|credentials service/)
 

@@ -43,7 +43,11 @@ test('writes ask with a redacted summary', () => {
   if (decision?.kind !== 'ask') return
   assert.match(decision.reason ?? '', /HIGH-RISK cloud API call cvm.ResetInstancesPassword on tencent account dev \/ ap-shanghai/)
   assert.doesNotMatch(decision.reason ?? '', /hunter2/)
-  assert.match(decision.displayReason?.['zh-CN'] ?? '', /高危操作/)
+  const zh = decision.displayReason?.['zh-CN'] ?? ''
+  assert.match(zh, /^⚠ 高危操作 · 将实例操作系统的密码重置为用户指定的密码\ncvm.ResetInstancesPassword · 账号 dev · 地域 ap-shanghai\n/)
+  assert.match(zh, /实例ID：ins-1\n重置后的实例登录密码：\*{6}$/)
+  assert.doesNotMatch(zh, /hunter2/)
+  assert.match(decision.displayReason?.en ?? '', /\nInstanceIds: ins-1\nPassword: \*{6}$/)
 })
 
 test('writes on read-only accounts are denied before approval', () => {
