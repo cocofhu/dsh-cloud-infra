@@ -3,6 +3,8 @@
  *
  *   lib/api-index/tencent/catalog.json   every service and action, each with the newest version that has it, for search
  *   lib/api-index/tencent/<service>.json input structures of every version, loaded on demand
+ *   lib/api-index/tencent/en/<service>.json English action summaries and top-level parameter docs,
+ *                                         from the international SDK, for English UI text
  *
  * Usage: node scripts/build-api-index.ts [outDir]
  */
@@ -14,12 +16,14 @@ import ts from 'typescript'
 const require = createRequire(import.meta.url)
 const SDK_ROOT = dirname(require.resolve('tencentcloud-sdk-nodejs/package.json'))
 const SERVICES_DIR = join(SDK_ROOT, 'tencentcloud', 'services')
+const INTL_ROOT = join(dirname(require.resolve('tencentcloud-sdk-nodejs-intl-en/package.json')), 'tencentcloud')
 const OUT_DIR = process.argv[2] ?? join(import.meta.dirname, '..', 'lib', 'api-index', 'tencent')
 
 /** Filter fields list every filter name in their doc, so they need room. */
 const FIELD_DOC_MAX = 1200
 const ACTION_DOC_MAX = 600
 const SUMMARY_MAX = 90
+const EN_FIELD_DOC_MAX = 400
 
 /** [name, type, required (1|0), doc] */
 type Field = [string, string, number, string]
@@ -48,6 +52,15 @@ export function summarize(doc: string): string {
   let text = doc.replace(/^本接口\s*[（(][^)）]*[)）]\s*/, '').replace(/^用于/, '')
   const end = text.search(/[。；;]/)
   if (end > 0) text = text.slice(0, end)
+  return text.length > SUMMARY_MAX ? `${text.slice(0, SUMMARY_MAX - 1)}…` : text
+}
+
+/** "This API is used to apply for a free certificate." -> "Apply for a free certificate". */
+export function summarizeEn(doc: string): string {
+  let text = doc.replace(/^This (?:API|interface)(?:\s*\([^)]*\))? (?:is used to|is used for|can be used to|is to|allows you to|is designed to)\s*/i, '')
+  const end = text.search(/\.(?:\s|$)/)
+  if (end > 0) text = text.slice(0, end)
+  text = text.charAt(0).toUpperCase() + text.slice(1)
   return text.length > SUMMARY_MAX ? `${text.slice(0, SUMMARY_MAX - 1)}…` : text
 }
 
@@ -151,6 +164,46 @@ function buildVersion(dir: string, service: string): VersionIndex | undefined {
   return { actions, types }
 }
 
+interface EnAction { summary: string; params: Record<string, string> }
+
+function commentText(raw: string): string {
+  return raw.split('\n').map((l) => l.replace(/^\s*\*\s?/, '')).filter((l) => !/^@/.test(l.trim())).join('\n')
+}
+
+/** The international SDK ships plain JS; its docs live in JSDoc comments. */
+function buildEnVersion(dir: string, service: string): Record<string, EnAction> {
+  const clientFile = join(dir, `${service}_client.js`)
+  const modelsFile = join(dir, 'models.js')
+  if (!existsSync(clientFile) || !existsSync(modelsFile)) return {}
+  const models = readFileSync(modelsFile, 'utf8')
+  const fields = new Map<string, Record<string, string>>()
+  for (const m of models.matchAll(/^class (\w+) extends\s+AbstractModel \{([\s\S]*?)^    deserialize\(/gm)) {
+    const docs: Record<string, string> = {}
+    for (const f of m[2]!.matchAll(/\/\*\*([\s\S]*?)\*\/\s*this\.(\w+) = null;/g)) {
+      const doc = cleanDoc(commentText(f[1]!), EN_FIELD_DOC_MAX)
+      if (doc) docs[f[2]!] = doc
+    }
+    fields.set(m[1]!, docs)
+  }
+  const out: Record<string, EnAction> = {}
+  for (const m of readFileSync(clientFile, 'utf8').matchAll(/\/\*\*([\s\S]*?)\*\/\s*([A-Z]\w*)\(req, cb\)/g)) {
+    const input = /@param \{(\w+)\} req/.exec(m[1]!)?.[1]
+    out[m[2]!] = { summary: summarizeEn(cleanDoc(commentText(m[1]!), ACTION_DOC_MAX)), params: (input && fields.get(input)) || {} }
+  }
+  return out
+}
+
+/** Newest version wins per action. */
+function buildEnService(service: string): Record<string, EnAction> {
+  const root = join(INTL_ROOT, service)
+  if (!existsSync(root)) return {}
+  const out: Record<string, EnAction> = {}
+  for (const dirName of readdirSync(root).filter((d) => versionOf(d)).sort().reverse()) {
+    for (const [action, def] of Object.entries(buildEnVersion(join(root, dirName), service))) out[action] ??= def
+  }
+  return out
+}
+
 function versionOf(dirName: string): string | undefined {
   const m = /^v(\d{4})(\d{2})(\d{2})$/.exec(dirName)
   return m ? `${m[1]}-${m[2]}-${m[3]}` : undefined
@@ -159,7 +212,9 @@ function versionOf(dirName: string): string | undefined {
 function main(): void {
   const sdkVersion = (JSON.parse(readFileSync(join(SDK_ROOT, 'package.json'), 'utf8')) as { version: string }).version
   rmSync(OUT_DIR, { recursive: true, force: true })
-  mkdirSync(OUT_DIR, { recursive: true })
+  mkdirSync(join(OUT_DIR, 'en'), { recursive: true })
+  let enActions = 0
+  let enBytes = 0
   const services: Record<string, { latest: string; versions: string[] }> = {}
   const actions: ([string, string, string] | [string, string, string, string])[] = []
   let totalBytes = 0
@@ -187,10 +242,17 @@ function main(): void {
     const body = JSON.stringify({ service, versions })
     totalBytes += body.length
     writeFileSync(join(OUT_DIR, `${service}.json`), body)
+    const en = buildEnService(service)
+    if (Object.keys(en).length) {
+      const enBody = JSON.stringify({ service, actions: en })
+      enActions += Object.keys(en).length
+      enBytes += enBody.length
+      writeFileSync(join(OUT_DIR, 'en', `${service}.json`), enBody)
+    }
   }
   const catalog = JSON.stringify({ provider: 'tencent', sdkVersion, services, actions })
   writeFileSync(join(OUT_DIR, 'catalog.json'), catalog)
-  console.log(`api-index: ${Object.keys(services).length} services, ${actions.length} actions; catalog ${(catalog.length / 1024).toFixed(0)}KB, services ${(totalBytes / 1024 / 1024).toFixed(1)}MB (SDK ${sdkVersion})`)
+  console.log(`api-index: ${Object.keys(services).length} services, ${actions.length} actions; catalog ${(catalog.length / 1024).toFixed(0)}KB, services ${(totalBytes / 1024 / 1024).toFixed(1)}MB (SDK ${sdkVersion}); English docs for ${enActions} actions, ${(enBytes / 1024 / 1024).toFixed(1)}MB`)
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main()

@@ -58,7 +58,7 @@ export function visualizeTool(rt: Runtime) {
       },
       presentationMeta: (_args, value) => ({ kind: 'cloud-view', view: (value as unknown as VisualizeValue).view as unknown as JsonValue }),
     },
-    presentCall: (args) => ({ card: 'generic', title: `可视化 · ${String((args.view as { title?: string } | undefined)?.title ?? '')}`, kind: 'read', content: [] }),
+    presentCall: (args) => ({ card: 'generic', title: `Visualize · ${String((args.view as { title?: string } | undefined)?.title ?? '')}`, kind: 'read', content: [] }),
     async execute(args, exec) {
       const spec = { v: 1, ...(normalizeKinds(args.view) as object) } as ViewRoot
       const errors = validateView(spec)

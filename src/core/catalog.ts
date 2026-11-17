@@ -42,6 +42,9 @@ export interface ActionDescription {
   response: { name: string; type: string; doc?: string }[]
 }
 
+/** English action summary and top-level parameter docs, when the international SDK has the action. */
+export interface EnglishDocs { summary: string; params: Record<string, string> }
+
 export interface ApiCatalog {
   hasService(service: string): boolean
   /** Newest version of the service, or with `action` the newest version that has that action. */
@@ -49,6 +52,7 @@ export interface ApiCatalog {
   versions(service: string): string[]
   search(query: string, options?: { service?: string; limit?: number; offset?: number }): { total: number; hits: SearchHit[] }
   describe(service: string, action: string, version?: string): ActionDescription
+  english?(service: string, action: string): EnglishDocs | undefined
 }
 
 const MAX_DEPTH = 4
@@ -62,6 +66,7 @@ export class IndexedCatalog implements ApiCatalog {
   private catalog?: CatalogFile
   private olderActions?: Map<string, string>
   private readonly serviceFiles = new Map<string, ServiceFile>()
+  private readonly englishFiles = new Map<string, Record<string, EnglishDocs>>()
 
   constructor(private readonly dir: string) {}
 
@@ -121,6 +126,24 @@ export class IndexedCatalog implements ApiCatalog {
     const params = def.input ? expand(index, def.input, 0, seen) : []
     const response = def.output ? (index.types[def.output]?.fields ?? []).map(([name, type, , doc]) => ({ name, type, ...(doc ? { doc } : {}) })) : []
     return { service: svc, version: ver, action, doc: def.doc, params, response }
+  }
+
+  english(service: string, action: string): EnglishDocs | undefined {
+    const svc = service.trim().toLowerCase()
+    if (!/^[a-z][a-z0-9]*$/.test(svc)) return undefined
+    let actions = this.englishFiles.get(svc)
+    if (actions) {
+      this.englishFiles.delete(svc)
+    } else {
+      try {
+        actions = (JSON.parse(readFileSync(join(this.dir, 'en', `${svc}.json`), 'utf8')) as { actions: Record<string, EnglishDocs> }).actions
+      } catch {
+        actions = {}
+      }
+    }
+    this.englishFiles.set(svc, actions)
+    if (this.englishFiles.size > SERVICE_CACHE) this.englishFiles.delete(this.englishFiles.keys().next().value!)
+    return Object.hasOwn(actions, action) ? actions[action] : undefined
   }
 
   private load(): CatalogFile {

@@ -17,7 +17,7 @@ export function accountsTool(rt: Runtime) {
       schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => [{ type: 'text', text: renderAccounts((value as unknown as { accounts: AccountInfo[] }).accounts) }],
     },
-    presentCall: () => ({ card: 'generic', title: '云账号', kind: 'read', content: [] }),
+    presentCall: () => ({ card: 'generic', title: 'Cloud accounts', kind: 'read', content: [] }),
     async execute(args) {
       const accounts = await describeAccounts(rt, args.provider)
       return JSON.parse(JSON.stringify({ accounts })) as Record<string, JsonValue>

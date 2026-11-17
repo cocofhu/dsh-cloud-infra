@@ -4,6 +4,7 @@ export {
   Button,
   Card,
   Checkbox,
+  ConfigProvider,
   Form,
   Icon,
   Input,

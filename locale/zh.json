@@ -1,5 +1,7 @@
 {
   "meta": {
+    "title": "Cloud Infra",
+    "description": "在对话中调用云厂商 OpenAPI（先支持腾讯云），写操作复用 DSH 审批，查询结果可用 Cloud View 可视化展示。",
     "detail": "docs/plugin-detail.md"
   }
 }

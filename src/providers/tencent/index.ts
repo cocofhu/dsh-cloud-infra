@@ -28,7 +28,7 @@ export interface TencentProviderOptions {
 
 export class TencentProvider implements CloudProvider {
   readonly id = 'tencent'
-  readonly displayName = '腾讯云'
+  readonly displayName = 'Tencent Cloud'
   readonly catalog: ApiCatalog
   private readonly transport: TencentTransport
 

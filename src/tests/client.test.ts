@@ -17,9 +17,15 @@ interface ClientUnderTest {
   cardDefinition: { match: Record<string, (e: object) => unknown>; start: (c: object, m: object) => unknown; buildViewNode: (c: object) => Record<string, unknown> | null }
   CloudViewCard: (props: Record<string, unknown>) => React.ReactNode
   inject: string[]
+  GenericToolView: (props: Record<string, unknown>) => React.ReactNode
+  SettingsCard: () => React.ReactNode
+  setDefaultLang: (lang: 'zh' | 'en') => void
+  setLocaleRuntime: (rt: object | undefined) => void
+  currentLang: () => 'zh' | 'en'
 }
 
 const client = createRequire(import.meta.url)('./client-under-test.cjs') as ClientUnderTest
+client.setDefaultLang('zh')
 const html = (el: React.ReactElement) => renderToStaticMarkup(el)
 
 const rows: JsonValue = [
@@ -123,7 +129,9 @@ test('tool views render call and view results; apply registers slots', () => {
   client.apply({ get: (name: string) => (name === 'slots' ? slots : undefined), effect: () => undefined })
   assert.deepEqual(client.inject, ['slots'])
   assert.deepEqual(registered.map((r) => `${String(r.name)}:${String(r.key)}`), [
-    'tool.call.toolview:cloud_call', 'tool.call.toolview:cloud_visualize', 'plugins.bundle.config:@cocofhu/dsh-cloud-infra',
+    'tool.call.toolview:cloud_call', 'tool.call.toolview:cloud_visualize',
+    'tool.call.toolview:cloud_api_search', 'tool.call.toolview:cloud_api_describe', 'tool.call.toolview:cloud_result', 'tool.call.toolview:cloud_accounts',
+    'plugins.bundle.config:@cocofhu/dsh-cloud-infra',
   ])
 })
 
@@ -146,17 +154,48 @@ test('visualization results become Turn-level chat cards outside the tool group'
   assert.equal(node?.location, location)
   assert.match(html(React.createElement(client.CloudViewCard, { node })), /card body/)
 
-  const plugins: { inject: string[]; apply: (ctx: object) => void }[] = []
+  type SubPlugin = { name: string; inject: string[]; apply: (ctx: object) => void }
+  const plugins: SubPlugin[] = []
   const registered: string[] = []
   const definitions: unknown[] = []
   const slots = { inject: (_n: string, f: () => unknown) => { f() }, register: (o: Record<string, unknown>) => { registered.push(`${String(o.name)}:${String(o.key)}`); return () => undefined } }
-  client.apply({ get: () => slots, effect: () => undefined, plugin: (p: { inject: string[]; apply: (ctx: object) => void }) => plugins.push(p) })
-  assert.deepEqual(plugins[0]?.inject, ['slots', 'uiConversation'])
+  client.apply({ get: () => slots, effect: () => undefined, plugin: (p: SubPlugin) => plugins.push(p) })
+  assert.deepEqual(plugins.map((p) => `${p.name}:${p.inject.join(',')}`), ['cloud-infra-locale:locale', 'cloud-infra-view-card:slots,uiConversation'])
+  const card = plugins[1]
   const services: Record<string, unknown> = { slots, uiConversation: { events: { register: (d: unknown) => { definitions.push(d); return () => undefined } } } }
-  plugins[0]?.apply({ get: (n: string) => services[n], effect: (f: () => () => void) => { f() } })
+  card?.apply({ get: (n: string) => services[n], effect: (f: () => () => void) => { f() } })
   assert.equal(definitions[0], client.cardDefinition)
   assert.ok(registered.includes('conversation.chat.node:cloud-infra-view'))
   const row = html(React.createElement(client.VisualizeToolView, { phase: 'result', toolName: 'cloud_visualize', callId: 'c', block: { kind: 'tool-result', callId: 'c', name: 'cloud_visualize', call: null, content: [], isError: false, meta: { kind: 'cloud-view', view: v } } }))
   assert.match(row, /已在对话中展示/)
   assert.doesNotMatch(row, /card body/)
+})
+
+test('texts follow the DSH locale and fall back to English', () => {
+  const fake = (active: string) => ({
+    getSnapshot: () => ({ active, locales: [{ id: 'zh', fallback: 'en' }, { id: 'en' }, { id: 'ja', fallback: 'en' }] }),
+    subscribe: () => () => undefined,
+  })
+  const rowsView = compileView({ v: 1, items: [{ kind: 'table', data: { ref: 'r1' } }] } as ViewRoot, {
+    resolve: () => Array.from({ length: 12 }, (_, i) => ({ id: `ins-${i}` })),
+  }).view
+  try {
+    client.setLocaleRuntime(fake('en'))
+    assert.equal(client.currentLang(), 'en')
+    const table = html(React.createElement(client.ViewRenderer, { view: rowsView }))
+    assert.match(table, /placeholder="Filter by keyword"/)
+    assert.doesNotMatch(table, /[\u4e00-\u9fff]/, 'no Chinese left in the English table, including Tea pagination')
+    assert.match(html(React.createElement(client.SettingsCard)), /Cloud Infra · Cloud accounts/)
+    const search = html(React.createElement(client.GenericToolView, { phase: 'start', toolName: 'cloud_api_search', callId: 'c', block: { argsRaw: '{"query":"cvm instance"}' } }))
+    assert.match(search, /Search cloud APIs/)
+    assert.match(search, /cvm instance/)
+
+    client.setLocaleRuntime(fake('ja'))
+    assert.equal(client.currentLang(), 'en')
+    client.setLocaleRuntime(fake('zh'))
+    assert.match(html(React.createElement(client.ViewRenderer, { view: rowsView })), /placeholder="输入关键字筛选"/)
+    assert.match(html(React.createElement(client.SettingsCard)), /Cloud Infra · 云账号/)
+  } finally {
+    client.setLocaleRuntime(undefined)
+  }
 })

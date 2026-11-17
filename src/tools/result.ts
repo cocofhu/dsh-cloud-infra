@@ -52,7 +52,7 @@ export function resultTool(rt: Runtime) {
       schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => [{ type: 'text', text: renderSlice(value as unknown as ResultSlice, rt.config().maxOutputChars) }],
     },
-    presentCall: (args) => ({ card: 'generic', title: `读取结果 · ${String(args.ref ?? '')}${args.path ? ` · ${String(args.path)}` : ''}`, kind: 'read', content: [] }),
+    presentCall: (args) => ({ card: 'generic', title: `Read result · ${String(args.ref ?? '')}${args.path ? ` · ${String(args.path)}` : ''}`, kind: 'read', content: [] }),
     async execute(args, exec) {
       const stored = rt.results.get(exec.agent?.id ?? 'default', args.ref)
       const slice: ResultSlice = { ref: stored.ref, ...sliceResult(stored.data, args) }

@@ -265,7 +265,8 @@ riskRules:
 ### 7.2 复用 DSH 审批
 
 - 插件监听 `tools/pre-execute`：`cloud_call` 为 `read` 时调用 `next()`，否则返回 `{ kind: 'ask', reason, displayReason }`。工具流水线会把 `ask` 交给 `user-approval`，用户选择的权限预设、会话策略（`ask` / `never`）、审计日志全部沿用。
-- `reason` 与 `displayReason` 包含账号、地域、`service.Action`、风险等级和关键参数摘要。参数里名称匹配 `Password|Secret|Token|PrivateKey` 的字段会脱敏。
+- `reason`（给模型和审计日志，英文）包含账号、地域、`service.Action`、风险等级和参数 JSON。`displayReason` 是 `{ en, zh }`，由 DSH 按界面语言选取：第一行是风险等级和接口简介，之后每个参数一行，参数名取自 API 文档里参数说明的第一句，枚举值附上文档里的含义（如 `DNS_AUTO（自动添加域名DNS验证）`）。中文文档来自国内 SDK，英文来自国际版 SDK 生成的 `en/` 索引；没有文档时退回参数原名。参数里名称匹配 `Password|Secret|Token|PrivateKey` 的字段会脱敏。
+- 审批卡片的标题区默认不保留换行，插件样式给它加了 `white-space: pre-line`；样式失效时每段前的「· 」仍让合并后的文字可读。
 - 只读账号用 `ctx.tools.guard()` 做单调拒绝，任何审批都无法放行。
 - 审批卡片的 `conversation.approval.detail` 插槽是 `single` 类型，已经被 DSH 自带的审批组件占用，插件占用它会覆盖所有工具的审批界面。因此不使用该插槽，审批卡片中的详情只来自 `displayReason` 文本。
 - 已在真实 DSH 中验证：`--approval-policy never` 时写操作被拒绝，模型收到 `the user rejected tool "cloud_call"` 后不再重试。
@@ -362,6 +363,7 @@ const registry = new Map<string, ViewComponent<any>>()
 4. 输出：
    - `lib/api-index/tencent/catalog.json`：每个 Action 一行 `[service, action, 摘要, 版本?]`，约 0.9MB，首次搜索时加载。版本列只在该 Action 不在产品最新版本里时出现。
    - `lib/api-index/tencent/<service>.json`：该产品各版本的完整入参结构，共约 12MB，首次用到时懒加载，进程内保留最近 16 个产品。
+   - `lib/api-index/tencent/en/<service>.json`：英文的接口简介和顶层参数说明，从国际版 SDK `tencentcloud-sdk-nodejs-intl-en` 的 JSDoc 提取（该包只有 JS，用正则解析），覆盖 147 个产品、9,242 个 Action，共约 4.4MB，按需加载。只用于英文界面的审批文案。
 5. 版本选择：`version` 省略时，取包含该 Action 的最新版本。例如 monitor 的最新版本 2023-06-16 只有 42 个 Action，`GetMonitorData` 会自动落到 2018-07-24。
 6. SDK 4.1.344 的实测规模：263 个产品、16,037 个 Action，构建约 3 秒。
 

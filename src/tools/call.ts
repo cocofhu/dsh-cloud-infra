@@ -55,13 +55,13 @@ export function callTool(rt: Runtime) {
     },
     presentCall: (args) => ({
       card: 'generic',
-      title: `云 API · ${String(args.service ?? '')}.${String(args.action ?? '')}`,
+      title: `Cloud API · ${String(args.service ?? '')}.${String(args.action ?? '')}`,
       kind: 'fetch',
       content: [],
     }),
     presentResult: (args, { isError }) => ({
       card: 'generic',
-      title: `${isError ? '调用失败' : '云 API'} · ${String(args.service ?? '')}.${String(args.action ?? '')}`,
+      title: `${isError ? 'Cloud API failed' : 'Cloud API'} · ${String(args.service ?? '')}.${String(args.action ?? '')}`,
       content: [],
     }),
     async execute(args, exec) {

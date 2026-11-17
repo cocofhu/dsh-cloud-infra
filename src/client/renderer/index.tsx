@@ -5,6 +5,7 @@ import { formatValue } from '../format.js'
 import type { EchartsChunk, ModuleRequire } from '../types.js'
 import { CHART_HEIGHT, chartOption } from './chart-option.js'
 import { Card, Form, Icon, MetricsBoard, Pagination, SearchBox, Table, TabPanel, Tabs, Tag, TeaBadge, Text } from '../tea.js'
+import { TeaLocale, useT } from '../i18n.js'
 
 const { useEffect, useMemo, useRef, useState } = React
 
@@ -32,11 +33,15 @@ class Boundary extends React.Component<{ node: CompiledNode; children: React.Rea
     if (!this.state.error) return this.props.children
     return (
       <div>
-        <div className="ci-err">渲染 {this.props.node.kind} 失败：{this.state.error.message}</div>
+        <RenderError kind={this.props.node.kind} message={this.state.error.message} />
         <JsonBlock value={this.props.node as unknown as JsonValue} />
       </div>
     )
   }
+}
+
+function RenderError({ kind, message }: { kind: string; message: string }) {
+  return <div className="ci-err">{useT()('render.error', { kind, message })}</div>
 }
 
 const render: Render = (node, key) => {
@@ -46,13 +51,16 @@ const render: Render = (node, key) => {
 }
 
 export function ViewRenderer({ view }: { view: CompiledView }) {
+  const t = useT()
   if (!view || view.v !== 1 || !view.body) return <JsonBlock value={view as unknown as JsonValue} />
   return (
-    <div className="ci-view">
-      {view.title ? <div className="ci-view-title">{view.title}</div> : null}
-      {render(view.body)}
-      {view.truncated ? <div className="ci-note">部分数据超过展示上限，已截断。</div> : null}
-    </div>
+    <TeaLocale>
+      <div className="ci-view">
+        {view.title ? <div className="ci-view-title">{view.title}</div> : null}
+        {render(view.body)}
+        {view.truncated ? <div className="ci-note">{t('view.truncated')}</div> : null}
+      </div>
+    </TeaLocale>
   )
 }
 
@@ -66,6 +74,7 @@ export function JsonBlock({ value }: { value: JsonValue }) {
 
 /** Long text folds to its first lines instead of scrolling, so the chat keeps a single scrollbar. */
 export function PreBlock({ text, lines = 16 }: { text: string; lines?: number }) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
   const all = useMemo(() => text.split('\n'), [text])
   const folded = !expanded && all.length > lines + 4
@@ -74,7 +83,7 @@ export function PreBlock({ text, lines = 16 }: { text: string; lines?: number })
       <pre className="ci-pre">{folded ? all.slice(0, lines).join('\n') : text}</pre>
       {all.length > lines + 4 ? (
         <button type="button" className="ci-more" onClick={() => setExpanded(!expanded)}>
-          {expanded ? '收起' : `展开全部（${all.length} 行）`}
+          {expanded ? t('list.collapse') : t('list.expand', { count: all.length })}
         </button>
       ) : null}
     </div>
@@ -169,6 +178,7 @@ function columnWidths(columns: { title: string; format?: Format }[], rows: JsonV
 }
 
 registerViewComponent('table', ({ node }) => {
+  const t = useT()
   const [pageIndex, setPageIndex] = useState(1)
   const [query, setQuery] = useState('')
   const [sorts, setSorts] = useState<SortBy[]>([])
@@ -200,7 +210,7 @@ registerViewComponent('table', ({ node }) => {
     <Section title={node.title}>
       {paged ? (
         <div className="ci-tbar">
-          <SearchBox size="m" placeholder="输入关键字筛选" value={query} aria-label="筛选表格"
+          <SearchBox size="m" placeholder={t('table.filter')} value={query} aria-label={t('table.filterAria')}
             onChange={(v: string) => { setQuery(v); setPageIndex(1) }} onClear={() => { setQuery(''); setPageIndex(1) }} />
         </div>
       ) : null}
@@ -211,7 +221,7 @@ registerViewComponent('table', ({ node }) => {
             records={visible}
             recordKey={(_: JsonValue[], i: number) => String((current - 1) * pageSize + i)}
             addons={addons}
-            topTip={visible.length ? undefined : <div className="ci-empty">{query ? '没有匹配的数据' : '暂无数据'}</div>}
+            topTip={visible.length ? undefined : <div className="ci-empty">{t(query ? 'table.noMatch' : 'table.empty')}</div>}
           />
         </div>
       </div>
@@ -219,7 +229,7 @@ registerViewComponent('table', ({ node }) => {
         <Pagination recordCount={rows.length} pageIndex={current} pageSize={pageSize} pageSizeVisible={false}
           onPagingChange={(q: { pageIndex?: number }) => setPageIndex(q.pageIndex ?? 1)} />
       ) : null}
-      {node.total > node.rows.length ? <div className="ci-note">共 {node.total} 行，展示前 {node.rows.length} 行。</div> : null}
+      {node.total > node.rows.length ? <div className="ci-note">{t('table.partial', { total: node.total, shown: node.rows.length })}</div> : null}
     </Section>
   )
 })
@@ -282,6 +292,7 @@ export function EChart({ option, height, title }: { option: Record<string, unkno
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
   const dark = useDarkTheme()
+  const t = useT()
   useEffect(() => {
     let live = true
     loadEcharts().then((ec) => {
@@ -298,7 +309,7 @@ export function EChart({ option, height, title }: { option: Record<string, unkno
       <div className="ci-chart" style={{ height }}>
         <div ref={el} style={{ width: '100%', height: '100%' }} />
         {state !== 'ready' ? (
-          <div className="ci-chart-ph">{state === 'loading' ? <><Spinner />加载图表…</> : <span className="ci-err">图表加载失败：{error}</span>}</div>
+          <div className="ci-chart-ph">{state === 'loading' ? <><Spinner />{t('chart.loading')}</> : <span className="ci-err">{t('chart.failed', { error })}</span>}</div>
         ) : null}
       </div>
     </Section>
@@ -306,11 +317,12 @@ export function EChart({ option, height, title }: { option: Record<string, unkno
 }
 
 registerViewComponent('chart', ({ node }) => {
+  const t = useT()
   const option = useMemo(() => chartOption(node as CompiledChart), [node])
   return (
     <>
       <EChart option={option} height={CHART_HEIGHT} title={node.title} />
-      {node.truncated ? <div className="ci-note">数据点过多，只展示最近的部分。</div> : null}
+      {node.truncated ? <div className="ci-note">{t('chart.truncated')}</div> : null}
     </>
   )
 })

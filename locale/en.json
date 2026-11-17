@@ -1,5 +1,7 @@
 {
   "meta": {
+    "title": "Cloud Infra",
+    "description": "Call cloud provider OpenAPIs from the conversation (Tencent Cloud first). Writes go through DSH approval, and results can be shown as Cloud View visualizations.",
     "detail": "docs/plugin-detail.md"
   }
 }

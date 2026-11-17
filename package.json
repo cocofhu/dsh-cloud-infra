@@ -1,7 +1,7 @@
 {
   "name": "@cocofhu/dsh-cloud-infra",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 插件：在对话中调用云厂商 OpenAPI（先支持腾讯云），写操作复用 DSH 审批，内置 Cloud View 可视化组件",
+  "description": "DeepSeek Harness plugin: call cloud provider OpenAPIs (Tencent Cloud first) from the conversation, with DSH approval for writes and Cloud View visualizations",
   "homepage": "https://github.com/cocofhu/dsh-cloud-infra#readme",
   "bugs": {
     "url": "https://github.com/cocofhu/dsh-cloud-infra/issues"
@@ -16,7 +16,8 @@
     ".": "./lib/host.js",
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
@@ -59,6 +60,7 @@
     "client": {
       "platform": "web",
       "inject": [
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-plugin-manager"
@@ -95,6 +97,7 @@
     "react-dom": "^18.3.1",
     "tea-component": "2.8.0",
     "tencentcloud-sdk-nodejs": "^4.1.344",
+    "tencentcloud-sdk-nodejs-intl-en": "^3.0.1471",
     "typescript": "^5.9.0"
   },
   "peerDependenciesMeta": {

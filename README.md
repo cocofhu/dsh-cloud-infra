@@ -50,6 +50,14 @@ Cloud View 只有 5 种组件，按 `items` 顺序从上到下排列：`stats`�
 - JSON 和结果节选超过 20 行时折叠，点击「展开全部」查看。
 - DSH 的「Called tools」分组默认最高 400px，包含 Cloud View 的分组会取消这个高度限制。
 
+## 多语言
+
+插件界面支持中文和英文，跟随 DSH 的界面语言切换；其他语言按 DSH 的回退链显示英文。
+- 客户端文案（设置卡片、工具卡片、Cloud View 组件，以及 Tea 自带的分页等文字）集中在 `src/client/i18n.tsx`，两种语言的 key 由类型检查保证一致。
+- 写操作的审批文案在服务端同时生成中英两份：中文的接口和参数说明来自 `tencentcloud-sdk-nodejs`，英文的来自国际版 SDK `tencentcloud-sdk-nodejs-intl-en`（构建期依赖，生成 `lib/api-index/tencent/en/`）。
+- 插件名称和简介在 `locale/zh.json`、`locale/en.json`；配置项说明用 schemastery 的 `.i18n({ en, zh })`。
+- 返回给模型的工具说明和错误信息保持英文。
+
 ## 组件设计页
 
 组件直接使用腾讯云控制台组件库 Tea（`tea-component` 2.8.0），跟随 DSH 切换亮色和暗色：表格（排序、筛选、分页）、标签页、指标卡（MetricsBoard）、只读表单、标签、按钮，以及设置页的表单控件都是 Tea 组件；图表仍用 ECharts。`tea-component` 的 npm 许可证是 `UNLICENSED`，本插件已获授权将其打包进 `lib/client.js` 一起发布，Tea 的第三方声明随包附在 `lib/tea-component.Attribution.txt`。

@@ -43,10 +43,10 @@ test('writes ask with a redacted summary', () => {
   if (decision?.kind !== 'ask') return
   assert.match(decision.reason ?? '', /HIGH-RISK cloud API call cvm.ResetInstancesPassword on tencent account dev \/ ap-shanghai/)
   assert.doesNotMatch(decision.reason ?? '', /hunter2/)
-  const zh = decision.displayReason?.['zh-CN'] ?? ''
+  const zh = decision.displayReason?.zh ?? ''
   assert.equal(zh, '⚠ 高危操作 · 将实例操作系统的密码重置为用户指定的密码（cvm.ResetInstancesPassword，账号 dev，地域 ap-shanghai）\n'
     + '· 一个或多个待操作的实例ID：ins-1\n· 重置后的实例登录密码：******')
-  assert.match(decision.displayReason?.en ?? '', /\n· Instance ids: ins-1\n· Password: \*{6}$/)
+  assert.match(decision.displayReason?.en ?? '', /^⚠ HIGH-RISK · Reset the password of the operating system instances to a user-specified password \(cvm.ResetInstancesPassword, account dev, region ap-shanghai\)\n· Instance ID\(s\): ins-1\n· Login password of the instance: \*{6}$/)
 })
 
 test('writes on read-only accounts are denied before approval', () => {
@@ -67,6 +67,9 @@ test('approval text explains enum values from the API docs', () => {
   }))
   assert.equal(decision?.kind, 'ask')
   if (decision?.kind !== 'ask') return
-  assert.equal(decision.displayReason?.['zh-CN'], '写操作 · 免费证书申请（ssl.ApplyCertificate，账号 dev）\n'
+  assert.equal(decision.displayReason?.zh, '写操作 · 免费证书申请（ssl.ApplyCertificate，账号 dev）\n'
     + '· 证书域名验证方式：DNS_AUTO（自动添加域名DNS验证）\n· 证书绑定的域名：example.com\n· 证书类型：83（TrustAsia C1 DV Free）')
+  assert.equal(decision.displayReason?.en, 'Write · Apply for a free certificate (ssl.ApplyCertificate, account dev)\n'
+    + '· Certificate domain validation methods: DNS_AUTO (Automatically add domain DNS validation)\n'
+    + '· Domain bound to the certificate: example.com\n· Certificate type: 83 (trustasia c1 dv free)')
 })

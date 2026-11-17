@@ -29,7 +29,7 @@ export function apiSearchTool(rt: Runtime) {
       schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => [{ type: 'text', text: renderSearch(value as unknown as SearchValue) }],
     },
-    presentCall: (args) => ({ card: 'generic', title: `搜索云 API · ${String(args.query ?? args.service ?? '')}`, kind: 'search', content: [] }),
+    presentCall: (args) => ({ card: 'generic', title: `Search cloud APIs · ${String(args.query ?? args.service ?? '')}`, kind: 'search', content: [] }),
     async execute(args) {
       const providerId = args.provider || DEFAULT_PROVIDER
       const provider = rt.providers.get(providerId)
@@ -73,7 +73,7 @@ export function apiDescribeTool(rt: Runtime) {
         return [{ type: 'text', text: renderDescription(v, v.risk) }]
       },
     },
-    presentCall: (args) => ({ card: 'generic', title: `云 API 文档 · ${String(args.service ?? '')}.${String(args.action ?? '')}`, kind: 'read', content: [] }),
+    presentCall: (args) => ({ card: 'generic', title: `Cloud API docs · ${String(args.service ?? '')}.${String(args.action ?? '')}`, kind: 'read', content: [] }),
     async execute(args) {
       const providerId = args.provider || DEFAULT_PROVIDER
       const provider = rt.providers.get(providerId)
