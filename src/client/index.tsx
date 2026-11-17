@@ -35,7 +35,7 @@ export function apply(ctx: ClientContext): void {
   slots.inject('plugins.bundle.config', () => slots.register({ name: 'plugins.bundle.config', id: 'cloud-infra-accounts', key: PACKAGE_NAME }, BundleConfig))
 }
 
-export const PACKAGE_NAME = '@cocofhu/dsh-cloud-infra'
+const PACKAGE_NAME = '@cocofhu/dsh-cloud-infra'
 
 /** Loads only where DSH provides its locale service; until then texts use the browser language. */
 const localePlugin = {

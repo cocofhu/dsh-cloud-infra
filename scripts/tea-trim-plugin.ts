@@ -30,7 +30,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /** Addons reachable through `Table.addons`; add one here before using it. */
-export const TABLE_ADDONS = ['sortable']
+const TABLE_ADDONS = ['sortable']
 
 const stub = (name: string) => `export function ${name}() { throw new Error("Tea ${name} is not bundled with dsh-cloud-infra") }`
 const TOOLTIP = `import React from "react";

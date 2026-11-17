@@ -11,8 +11,6 @@ export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
 export type JsonObject = { [key: string]: JsonValue }
 
-export const VIEW_VERSION = 1
-
 export const TONES = ['neutral', 'info', 'success', 'warning', 'danger'] as const
 export type Tone = (typeof TONES)[number]
 
@@ -109,7 +107,6 @@ export interface CompiledView {
 
 export const CONTENT_KINDS = ['stats', 'table', 'chart', 'kv'] as const
 export const NODE_KINDS = [...CONTENT_KINDS, 'tabs'] as const
-export type NodeKind = (typeof NODE_KINDS)[number]
 
 /** Generic status words → tone; shared so host summaries and client badges agree. */
 export function statusTone(value: unknown): Tone {

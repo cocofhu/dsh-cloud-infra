@@ -1,8 +1,6 @@
 import Schema from '@deepseek-ai/schemastery'
 import type { AccountConfig, RiskRule } from './core/types.js'
 
-export const SETTINGS_NS = 'cloud-infra'
-
 export interface Config {
   accounts: AccountConfig[]
   riskRules: RiskRule[]

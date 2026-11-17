@@ -7,7 +7,7 @@ import { compileView } from '../view/compile.js'
 import type { CompiledView, ViewRoot } from '../view/spec.js'
 import { validateView } from '../view/validate.js'
 
-export const VISUALIZE_TOOL = 'cloud_visualize'
+const VISUALIZE_TOOL = 'cloud_visualize'
 
 interface VisualizeValue {
   title?: string
@@ -19,7 +19,7 @@ interface VisualizeValue {
 }
 
 /** Models often write "type" for "kind"; accept it on components (root items and tab items only). */
-export function normalizeKinds(view: unknown): unknown {
+function normalizeKinds(view: unknown): unknown {
   if (!view || typeof view !== 'object' || Array.isArray(view)) return view
   const root = view as Record<string, unknown>
   return Array.isArray(root.items) ? { ...root, items: root.items.map(normalizeNode) } : root

@@ -31,7 +31,7 @@ interface TypeDef { doc?: string; fields: Field[] }
 interface ActionDef { doc: string; input: string | null; output: string | null }
 interface VersionIndex { actions: Record<string, ActionDef>; types: Record<string, TypeDef> }
 
-export function cleanDoc(raw: string | undefined, max: number): string {
+function cleanDoc(raw: string | undefined, max: number): string {
   if (!raw) return ''
   let text = raw
     .replace(/注意：此字段可能返回 null，表示取不到有效值。?/g, '')
@@ -48,7 +48,7 @@ export function cleanDoc(raw: string | undefined, max: number): string {
 }
 
 /** First sentence of an action doc, without the "本接口(Xxx)用于" boilerplate. */
-export function summarize(doc: string): string {
+function summarize(doc: string): string {
   let text = doc.replace(/^本接口\s*[（(][^)）]*[)）]\s*/, '').replace(/^用于/, '')
   const end = text.search(/[。；;]/)
   if (end > 0) text = text.slice(0, end)
@@ -56,7 +56,7 @@ export function summarize(doc: string): string {
 }
 
 /** "This API is used to apply for a free certificate." -> "Apply for a free certificate". */
-export function summarizeEn(doc: string): string {
+function summarizeEn(doc: string): string {
   let text = doc.replace(/^This (?:API|interface)(?:\s*\([^)]*\))? (?:is used to|is used for|can be used to|is to|allows you to|is designed to)\s*/i, '')
   const end = text.search(/\.(?:\s|$)/)
   if (end > 0) text = text.slice(0, end)

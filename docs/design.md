@@ -71,8 +71,11 @@ dsh-cloud-infra/
   package.json            dsh.bundle + dsh.client 声明
   cordis.patch.yml        默认插入一行插件配置
   scripts/
-    build-api-index.ts    从全量 SDK 的 .d.ts 生成 API 索引
+    build-api-index.ts    从全量 SDK 的 .d.ts 生成 API 索引，从国际版 SDK 生成英文覆盖层
     build-client.ts       esbuild 打包 Client，输出 ModuleLoader 格式
+    tea-trim-plugin.ts    esbuild 插件：裁掉 Tea 用不到的部分
+    tea-css.ts            按打包代码裁剪 Tea 样式并注入
+    serve-design.ts       单独运行组件设计页
   src/
     host.ts               apply(ctx)：组装各部分
     config.ts             插件配置 Schema
@@ -93,13 +96,15 @@ dsh-cloud-infra/
       credentials.ts      DSH credentials 与 ~/.tccli 两个来源
       risk.ts             腾讯云 Action 命名规则
       errors.ts           腾讯云错误码 → CloudError
-    runtime.ts            resolveCall：账号、版本、参数纠正、风险、地域（审批钩子与工具共用）
+    runtime.ts            审批钩子与工具共用：resolveCall（账号、版本、参数纠正、风险、地域）、只读拒绝、参数脱敏
     tools/
       accounts.ts  api.ts（search + describe）  call.ts  result.ts  visualize.ts
     web/
       api.ts              /cloud-infra/api 账号管理接口
+      static.ts           组件设计页的静态文件
     policy/
-      approval.ts         tools/pre-execute 钩子
+      approval.ts         tools/pre-execute 钩子与只读 guard
+      approval-text.ts    审批卡片的中英文文案
     view/
       spec.ts             View Spec 类型（Host 与 Client 共用）
       validate.ts         View Spec 校验
@@ -109,11 +114,14 @@ dsh-cloud-infra/
       index.tsx           apply：注册 slots
       renderer/           ViewRenderer + 各 kind 组件
       echarts/            懒加载 chunk 入口 + 主题
-      toolviews.tsx       cloud_call / cloud_visualize 卡片
+      toolviews.tsx       各 cloud_* 工具的卡片
+      chat-card.tsx       cloud_visualize 结果作为回合级卡片
       settings.tsx        账号管理卡片
+      i18n.tsx            中英文词典，跟随 DSH 界面语言
+      tea.ts  styles.ts   用到的 Tea 组件、插件样式
       testing.ts          测试用入口（打包成 lib/tests/client-under-test.cjs）
   lib/                    构建产物（发布内容）
-    api-index/            catalog.json + <service>.json
+    api-index/            catalog.json + <service>.json + en/<service>.json
 ```
 
 ## 4. Provider 抽象

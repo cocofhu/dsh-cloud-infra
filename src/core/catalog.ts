@@ -264,7 +264,7 @@ interface Query {
   verbs: string[]
 }
 
-export function parseQuery(text: string): Query {
+function parseQuery(text: string): Query {
   const pick = (table: [string, string][], from: string) => [...new Set(table.filter(([zh]) => from.includes(zh)).map(([, en]) => en))]
   const services: string[] = []
   let rest = text

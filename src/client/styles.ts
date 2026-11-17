@@ -1,17 +1,17 @@
 export const STYLE_ID = 'dsh-cloud-infra-style'
 
-/** Tencent Cloud console (Tea) visual language: palette, sizes and square corners, light and dark. */
-export const TOKENS_LIGHT = `--ci-primary:#006eff;--ci-primary-hover:#2a86ff;--ci-text:rgba(0,0,0,0.9);--ci-strong:#000;--ci-label:rgba(0,0,0,0.4);--ci-weak:rgba(0,0,0,0.25);
---ci-bg:#fff;--ci-bg-sub:#f3f4f7;--ci-hover:#f3f4f7;--ci-btn-hover:#ebeef2;--ci-disabled:#e7eaef;--ci-border:#e7eaef;--ci-border-strong:#cfd5de;
---ci-success:#0abf5b;--ci-danger:#e54545;--ci-warning:#ff7200;--ci-info:#006eff;
---ci-info-bg:#d5e7ff;--ci-info-fg:#002da0;--ci-success-bg:#d6f4e4;--ci-success-fg:#06774a;--ci-warning-bg:#ffe8d5;--ci-warning-fg:#a02800;--ci-danger-bg:#fbe0e0;--ci-danger-fg:#9c1f3b;
---ci-tag-bg:#f3f4f7;--ci-tag-fg:#000;--ci-shadow:0 2px 4px 0 rgba(54,58,80,0.32)`
+/** Colors for the plugin's own chrome (tool cards, JSON excerpts) and the ECharts theme, matching Tea light and dark. */
+export const TOKENS_LIGHT = `--ci-primary:#006eff;--ci-text:rgba(0,0,0,0.9);--ci-strong:#000;--ci-label:rgba(0,0,0,0.4);--ci-weak:rgba(0,0,0,0.25);
+--ci-bg:#fff;--ci-bg-sub:#f3f4f7;--ci-hover:#f3f4f7;--ci-border:#e7eaef;--ci-border-strong:#cfd5de;
+--ci-danger:#e54545;
+--ci-info-bg:#d5e7ff;--ci-info-fg:#002da0;
+--ci-shadow:0 2px 4px 0 rgba(54,58,80,0.32)`
 
-export const TOKENS_DARK = `--ci-primary:#2684ff;--ci-primary-hover:#4a99ff;--ci-text:rgba(211,222,235,0.9);--ci-strong:#fff;--ci-label:rgba(211,222,235,0.6);--ci-weak:rgba(211,222,235,0.4);
---ci-bg:#1e222d;--ci-bg-sub:#262f3e;--ci-hover:#262f3e;--ci-btn-hover:#262f3e;--ci-disabled:#262f3e;--ci-border:#344158;--ci-border-strong:#344158;
---ci-success:#5dbe8a;--ci-danger:#d27c7e;--ci-warning:#e6c979;--ci-info:#2684ff;
---ci-info-bg:#0935ad;--ci-info-fg:#6eadff;--ci-success-bg:#07623f;--ci-success-fg:#5dbe8a;--ci-warning-bg:#8c581e;--ci-warning-fg:#e6c979;--ci-danger-bg:#742536;--ci-danger-fg:#d27c7e;
---ci-tag-bg:#344158;--ci-tag-fg:#fff;--ci-shadow:0 0 1px 0 #000`
+const TOKENS_DARK = `--ci-primary:#2684ff;--ci-text:rgba(211,222,235,0.9);--ci-strong:#fff;--ci-label:rgba(211,222,235,0.6);--ci-weak:rgba(211,222,235,0.4);
+--ci-bg:#1e222d;--ci-bg-sub:#262f3e;--ci-hover:#262f3e;--ci-border:#344158;--ci-border-strong:#344158;
+--ci-danger:#d27c7e;
+--ci-info-bg:#0935ad;--ci-info-fg:#6eadff;
+--ci-shadow:0 0 1px 0 #000`
 
 export const CSS = `
 [data-step-process-body]:has(.ci-view){max-height:none;overflow:visible}

@@ -209,11 +209,11 @@ function subscribe(fn: () => void): () => void {
 
 export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string
 
-export function translator(lang: Lang): Translate {
+function translator(lang: Lang): Translate {
   return (key, params) => MESSAGES[lang][key].replace(/\{(\w+)\}/g, (m, name: string) => (params && name in params ? String(params[name]) : m))
 }
 
-export function useLang(): Lang {
+function useLang(): Lang {
   return useSyncExternalStore(subscribe, currentLang, currentLang)
 }
 

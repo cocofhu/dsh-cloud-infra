@@ -4,7 +4,7 @@ import { ViewRenderer } from './renderer/index.js'
 import type { ClientContext, SlotsService } from './types.js'
 
 /** Chat node kind for a Cloud View rendered at Turn level, outside the tool-call group. */
-export const CARD_NODE_KIND = 'cloud-infra-view'
+const CARD_NODE_KIND = 'cloud-infra-view'
 
 interface CardState {
   seq: number
@@ -91,7 +91,7 @@ export const cardDefinition = {
 }
 
 export function CloudViewCard({ node }: { node: { data: { view: CompiledView } } }) {
-  return <div className="ci-root ci-card-node"><ViewRenderer view={node.data.view} /></div>
+  return <div className="ci-root"><ViewRenderer view={node.data.view} /></div>
 }
 
 export const cardPlugin = {

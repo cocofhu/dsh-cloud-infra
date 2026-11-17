@@ -1,7 +1,7 @@
 /** Node-side test surface of the client, bundled into lib/tests/client-under-test.cjs. */
-export { ViewRenderer, registerViewComponent } from './renderer/index.js'
+export { ViewRenderer } from './renderer/index.js'
 export { chartOption } from './renderer/chart-option.js'
-export { formatValue, axisLabel, toDate } from './format.js'
+export { formatValue } from './format.js'
 export { CallToolView, GenericToolView, VisualizeToolView } from './toolviews.js'
 export { setDefaultLang, setLocaleRuntime, currentLang } from './i18n.js'
 export { SettingsCard } from './settings.js'

@@ -34,11 +34,6 @@ export function validateView(input: unknown): string[] {
     if (v === undefined) { if (required) err(`${at}.${key}`, `required, one of ${allowed.join(' | ')}`); return }
     if (typeof v !== 'string' || !allowed.includes(v)) err(`${at}.${key}`, `must be one of ${allowed.join(' | ')}`)
   }
-  const num = (o: Obj, key: string, at: string, min = -Infinity, max = Infinity): void => {
-    const v = o[key]
-    if (v === undefined) return
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > max) err(`${at}.${key}`, `must be a number in [${min}, ${max}]`)
-  }
   const data = (o: Obj, key: string, at: string): void => {
     const v = o[key]
     if (v === undefined) { err(`${at}.${key}`, 'required: inline array/object or a binding { "ref": "r1", "path": "InstanceSet" }'); return }

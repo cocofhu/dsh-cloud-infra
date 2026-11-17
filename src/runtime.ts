@@ -15,6 +15,7 @@ export interface Runtime {
 }
 
 export const DEFAULT_PROVIDER = 'tencent'
+export const CALL_TOOL = 'cloud_call'
 
 export interface CallArgs {
   provider?: string
@@ -70,6 +71,12 @@ export function resolveCall(rt: Runtime, args: CallArgs): ResolvedCall {
   if (request.region) throw new ToolArgsError(['pass either "region" or "regions", not both'])
   if (regions.length > MAX_REGIONS) throw new ToolArgsError([`at most ${MAX_REGIONS} regions per call`])
   return { request, account, risk, regions }
+}
+
+/** Writes on read-only accounts are refused by both the approval policy and the tool body. */
+export function readonlyDenial(call: ResolvedCall): string | undefined {
+  if (call.risk === 'read' || !call.account.readonly) return undefined
+  return `account "${call.account.id}" is read-only; ${call.request.service}.${call.request.action} is a ${call.risk} operation and was refused. Do not try to work around this.`
 }
 
 function typedParams(catalog: ApiCatalog, service: string, action: string, version: string | undefined, params: JsonObject): JsonObject {

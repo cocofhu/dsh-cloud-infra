@@ -243,7 +243,7 @@ function cell(v: JsonValue | undefined): JsonValue {
   return json.length > MAX_CELL_CHARS ? `${json.slice(0, MAX_CELL_CHARS)}…` : v
 }
 
-export function toNumber(v: JsonValue | undefined): number | null {
+function toNumber(v: JsonValue | undefined): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null
   if (typeof v === 'boolean') return v ? 1 : 0
   if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v)

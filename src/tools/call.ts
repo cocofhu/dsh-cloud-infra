@@ -2,8 +2,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { CloudError, CloudErrorCode } from '../core/errors.js'
 import { truncateJson } from '../core/truncate.js'
 import type { CloudResponse, JsonObject, JsonValue, RiskLevel } from '../core/types.js'
-import { CALL_TOOL, readonlyDenial } from '../policy/approval.js'
-import { MAX_REGIONS, resolveCall, type ResolvedCall, type Runtime } from '../runtime.js'
+import { CALL_TOOL, MAX_REGIONS, readonlyDenial, resolveCall, type ResolvedCall, type Runtime } from '../runtime.js'
 
 const PREVIEW_CHARS = 4000
 const REGION_CONCURRENCY = 6
@@ -130,7 +129,7 @@ async function fanOut(rt: Runtime, call: ResolvedCall, signal: AbortSignal): Pro
   return { data: ordered, durationMs: Date.now() - started, failedRegions: failed }
 }
 
-export function renderCall(value: CallValue, maxChars: number): string {
+function renderCall(value: CallValue, maxChars: number): string {
   const { text, truncated } = truncateJson(value.data, maxChars)
   const where = value.regions
     ? ` · regions=${value.regions.length}${value.failedRegions?.length ? ` (failed: ${value.failedRegions.join(', ')})` : ''}`

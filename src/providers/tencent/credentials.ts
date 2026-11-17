@@ -5,9 +5,9 @@ import type { CredentialKey, CredentialProvider } from '@deepseek-ai/dsh-credent
 import { CloudError, CloudErrorCode } from '../../core/errors.js'
 import type { AccountConfig, AccountInfo, Secret } from '../../core/types.js'
 
-export const ENV_SECRET_ID = 'TENCENTCLOUD_SECRET_ID'
-export const ENV_SECRET_KEY = 'TENCENTCLOUD_SECRET_KEY'
-export const ENV_SESSION_TOKEN = 'TENCENTCLOUD_SESSION_TOKEN'
+const ENV_SECRET_ID = 'TENCENTCLOUD_SECRET_ID'
+const ENV_SECRET_KEY = 'TENCENTCLOUD_SECRET_KEY'
+const ENV_SESSION_TOKEN = 'TENCENTCLOUD_SESSION_TOKEN'
 
 const CREDENTIAL_SCOPE = 'cloud-infra'
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/
@@ -18,7 +18,7 @@ export function storeKey(accountId: string): CredentialKey {
   return `${CREDENTIAL_SCOPE}/tencent-${accountId}` as CredentialKey
 }
 
-export function maskSecretId(secretId: string): string {
+function maskSecretId(secretId: string): string {
   return secretId.length <= 8 ? '****' : `${secretId.slice(0, 4)}****${secretId.slice(-4)}`
 }
 

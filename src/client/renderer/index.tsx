@@ -64,7 +64,7 @@ export function ViewRenderer({ view }: { view: CompiledView }) {
   )
 }
 
-export function JsonBlock({ value }: { value: JsonValue }) {
+function JsonBlock({ value }: { value: JsonValue }) {
   const text = useMemo(() => {
     const s = JSON.stringify(value, null, 2) ?? 'null'
     return s.length > 200_000 ? `${s.slice(0, 200_000)}\n…` : s
@@ -159,11 +159,6 @@ function textWidth(text: string): number {
   return Math.ceil(width)
 }
 
-function cellText(value: JsonValue | undefined, format?: Format): string {
-  if (value === null || value === undefined || value === '') return '-'
-  return typeof value === 'object' && !Array.isArray(value) ? JSON.stringify(value) : formatValue(value, format)
-}
-
 /**
  * Column widths from the header (plus the sort button) and the 90th percentile of the
  * first rows, so narrow chats scroll the table sideways instead of squeezing headers.
@@ -171,7 +166,7 @@ function cellText(value: JsonValue | undefined, format?: Format): string {
 function columnWidths(columns: { title: string; format?: Format }[], rows: JsonValue[][]): number[] {
   const sample = rows.slice(0, 50)
   return columns.map((c, i) => {
-    const values = sample.map((r) => textWidth(cellText(r[i], c.format))).sort((a, b) => a - b)
+    const values = sample.map((r) => textWidth(formatValue(r[i], c.format))).sort((a, b) => a - b)
     const content = (values[Math.floor(values.length * 0.9)] ?? 0) + (c.format === 'status' ? 14 : 0)
     return Math.min(320, Math.max(72, textWidth(c.title) + 44, content + 28))
   })
@@ -265,7 +260,7 @@ registerViewComponent('stats', ({ node }) => (
 
 let chunk: Promise<EchartsChunk> | undefined
 
-export function loadEcharts(): Promise<EchartsChunk> {
+function loadEcharts(): Promise<EchartsChunk> {
   if (!chunk) {
     const req = typeof __dshRequire !== 'undefined' ? __dshRequire : undefined
     chunk = req?.async ? (req.async('./client.echarts.js') as Promise<EchartsChunk>) : Promise.reject(new Error('chart runtime unavailable'))
@@ -286,7 +281,7 @@ function useDarkTheme(): boolean {
   return dark
 }
 
-export function EChart({ option, height, title }: { option: Record<string, unknown>; height: number; title?: string }) {
+function EChart({ option, height, title }: { option: Record<string, unknown>; height: number; title?: string }) {
   const el = useRef<HTMLDivElement>(null)
   const instance = useRef<ReturnType<EchartsChunk['mount']> | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')

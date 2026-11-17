@@ -31,7 +31,7 @@ interface WebServerService {
   register: (route: { kind: 'exact' | 'prefix'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => () => void
 }
 
-export const SYSTEM_PROMPT = [
+const SYSTEM_PROMPT = [
   'Cloud resources: use only the cloud_* tools. Never run tccli or other cloud CLIs through bash; that bypasses user approval.',
   'Call cloud_accounts first when you do not know which account to use. When several accounts exist, pass "account" explicitly.',
   'When unsure of the product id, action or parameters, look them up with cloud_api_search and cloud_api_describe instead of guessing.',

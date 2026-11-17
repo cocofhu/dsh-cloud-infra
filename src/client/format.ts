@@ -2,7 +2,7 @@ import type { Format, JsonValue } from '../view/spec.js'
 
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
-export function formatBytes(n: number): string {
+function formatBytes(n: number): string {
   let v = Math.abs(n)
   let i = 0
   while (v >= 1024 && i < BYTE_UNITS.length - 1) { v /= 1024; i++ }
@@ -22,11 +22,11 @@ export function toDate(v: JsonValue): Date | null {
 
 function pad(n: number): string { return String(n).padStart(2, '0') }
 
-export function formatDate(d: Date, withSeconds = false): string {
+function formatDate(d: Date, withSeconds = false): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}${withSeconds ? `:${pad(d.getSeconds())}` : ''}`
 }
 
-export function formatNumber(n: number): string {
+function formatNumber(n: number): string {
   if (Number.isInteger(n)) return n.toLocaleString()
   return n.toLocaleString(undefined, { maximumFractionDigits: Math.abs(n) < 1 ? 4 : 2 })
 }
