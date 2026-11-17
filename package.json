@@ -22,7 +22,9 @@
     "lib",
     "!lib/tests",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "locale",
+    "docs/plugin-detail.md"
   ],
   "keywords": [
     "dsh",
