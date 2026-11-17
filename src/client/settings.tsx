@@ -6,7 +6,6 @@ const { useCallback, useEffect, useState } = React
 
 /** Document-relative, so the request follows the app's mount under any proxy prefix. */
 const API_ROUTE = 'cloud-infra/api'
-const DESIGN_ROUTE = 'cloud-infra/design/'
 
 interface AccountView {
   id: string
@@ -141,7 +140,6 @@ export function SettingsCard() {
         <Card.Body
           title="Cloud Infra · 云账号"
           subtitle="管理 Agent 可调用的云账号。密钥保存在 DSH 凭据存储中，不进入配置文件和模型上下文。"
-          operation={<Button type="weak" onClick={() => window.open(DESIGN_ROUTE, '_blank', 'noopener')}>组件设计页</Button>}
         >
           <div className="ci-col">
             {error ? <Text theme="danger" parent="div" className="ci-err">{error}</Text> : null}
